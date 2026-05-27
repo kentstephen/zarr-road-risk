@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# uv / venv
+.venv/
+.python-version-local
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Claude workspace-local memory (per global rules)
+.claude/memory/
+
+# Build / output artifacts
+*.png
+!docs/**/*.png
+preview.png
+
+# Embedded reference clone (has its own .git)
+deck.gl-raster/
+
+# Generated data artifacts
+data/
