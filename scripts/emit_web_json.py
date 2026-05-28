@@ -3,7 +3,7 @@
 Reads the freeway parquets built by build_freeway_parquets.ipynb and writes:
 
   web/public/freeways.json   - [{seg_id, path:[[lon,lat],...], h3_r5}, ...]
-  web/public/hex_pixels.json - [{h3_r5, gefs_i, gefs_j, lat, lon}, ...]
+  web/public/hex_pixels.json - [{h3_r5, hrrr_x, hrrr_y, lat, lon}, ...]
 
 Run: uv run python scripts/emit_web_json.py
 """
@@ -35,8 +35,8 @@ hx = pq.read_table(DATA / "freeway_hexes_r5.parquet").to_pandas()
 cells = [
     {
         "h3_r5": r.h3_r5,
-        "gefs_i": int(r.gefs_i),
-        "gefs_j": int(r.gefs_j),
+        "hrrr_x": int(r.hrrr_x),
+        "hrrr_y": int(r.hrrr_y),
         "lat": float(r.lat),
         "lon": float(r.lon),
     }

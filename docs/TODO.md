@@ -4,6 +4,16 @@ Tracked follow-ups from the browser LCR demo work. Captured 2026-05-28.
 
 ## Visualization
 
+- **Raster framing post-HRRR swap.** With `beforeId: "water"` the HRRR
+  raster only paints on land. Reads as confusing on its own — the Lambert
+  grid's straight edges along the Canadian / Mexican borders look like data
+  artifacts, and there's no visual cue that the field is bounded by the
+  HRRR domain (not the basemap). Options: (a) draw a faint CONUS outline so
+  the cutoff reads as intentional, (b) fade raster opacity near the HRRR
+  grid edges, (c) keep an over-water raster at lower opacity to communicate
+  "forecast field, CONUS only".
+- **Control panel rewrite.** Out of scope for the HRRR swap; revisit once
+  the data layer is settled. Header still says "GEFS LCR".
 - **Temperature colormap → diverging cool→warm.** Today every band uses
   ColorBrewer `blues` (sequential). Temperature needs Kepler-style
   cool-to-warm: deep blue cold, white neutral, deep orange hot. Precip stays

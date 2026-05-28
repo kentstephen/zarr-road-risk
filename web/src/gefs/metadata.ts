@@ -1,56 +1,76 @@
 import { COLORMAP_INDEX } from "@developmentseed/deck.gl-raster/gpu-modules";
 
 /**
- * Hardcoded GeoZarr-compliant attrs for the dynamical NOAA GEFS 35-day store.
+ * GeoZarr metadata for the dynamical NOAA HRRR 48-hour forecast store.
  *
- * Grid: 721 lat (90 -> -90 step -0.25) × 1440 lon (-180 -> 179.75 step 0.25).
- * CRS: WMO spherical ellipsoid in source; rendered as EPSG:4326.
+ * The store is a Lambert Conformal Conic grid on a sphere R=6371229 m
+ * (central meridian -97.5, latitude of origin 38.5, both standard parallels
+ * 38.5). ZarrLayer reprojects to web-mercator on the fly via proj4 + the
+ * WKT in `proj:wkt2`.
+ *
+ * Affine convention used by `@developmentseed/affine` (this repo):
+ *   x_out = a*col + b*row + c
+ *   y_out = d*col + e*row + f
+ * HRRR GeoTransform (from `spatial_ref/zarr.json`):
+ *   x0 = -2699020.142521929, dx = 3000, y0 = 1588193.847443335, dy = -3000
+ *
+ * Shape: 1059 (y) × 1799 (x).
  */
-export const GEFS_GEOZARR_ATTRS = {
-  "spatial:dimensions": ["latitude", "longitude"],
-  "spatial:transform": [0.25, 0, -180, 0, -0.25, 90],
-  "spatial:shape": [721, 1440],
-  "proj:code": "EPSG:4326",
+const HRRR_WKT = `PROJCS["unnamed",GEOGCS["Coordinate System imported from GRIB file",DATUM["unnamed",SPHEROID["Sphere",6371229,0]],PRIMEM["Greenwich",0],UNIT["degree",0.0174532925199433,AUTHORITY["EPSG","9122"]]],PROJECTION["Lambert_Conformal_Conic_2SP"],PARAMETER["latitude_of_origin",38.5],PARAMETER["central_meridian",-97.5],PARAMETER["standard_parallel_1",38.5],PARAMETER["standard_parallel_2",38.5],PARAMETER["false_easting",0],PARAMETER["false_northing",0],UNIT["Metre",1],AXIS["Easting",EAST],AXIS["Northing",NORTH]]`;
+
+export const HRRR_GEOZARR_ATTRS = {
+  "spatial:dimensions": ["y", "x"],
+  "spatial:transform": [3000, 0, -2699020.142521929, 0, -3000, 1588193.847443335],
+  "spatial:shape": [1059, 1799],
+  "proj:wkt2": HRRR_WKT,
 } as const;
 
-export const GEFS_NON_SPATIAL_DIMS = [
-  "init_time",
-  "ensemble_member",
-  "lead_time",
-] as const;
+/** Source-store dim order on the variable arrays: (init_time, lead_time, y, x). */
+export const HRRR_NON_SPATIAL_DIMS = ["init_time", "lead_time"] as const;
 
-/**
- * Lead-time schedule (hours): 3-hourly 0..240, 6-hourly 246..840.
- * 81 + 100 = 181 entries; matches the lead_time dim length.
- */
-export const GEFS_LEAD_TIME_HOURS: readonly number[] = (() => {
-  const hours: number[] = [];
-  for (let h = 0; h <= 240; h += 3) hours.push(h);
-  for (let h = 246; h <= 840; h += 6) hours.push(h);
-  return hours;
-})();
-
-export const GEFS_LEAD_TIME_COUNT = GEFS_LEAD_TIME_HOURS.length;
-
-export const GEFS_LEAD_TIME_STEP_HOURS: readonly number[] = (() => {
-  const steps: number[] = [];
-  for (let i = 0; i < GEFS_LEAD_TIME_HOURS.length - 1; i++) {
-    steps.push(GEFS_LEAD_TIME_HOURS[i + 1]! - GEFS_LEAD_TIME_HOURS[i]!);
-  }
-  steps.push(steps[steps.length - 1] ?? 3);
-  return steps;
-})();
-
-/** Grid origin & step for closed-form pixel index ((lon+180)/0.25, (90-lat)/0.25). */
-export const GEFS_GRID = {
-  lonOrigin: -180,
-  latOrigin: 90,
-  step: 0.25,
-  width: 1440,
-  height: 721,
+/** Inner Lambert grid (matches `spatial_ref/zarr.json` GeoTransform). */
+export const HRRR_GRID = {
+  x0: -2699020.142521929,
+  dx: 3000,
+  width: 1799,
+  y0: 1588193.847443335,
+  dy: -3000,
+  height: 1059,
 } as const;
 
-/** Variables sampled; order is fixed and matches the GPU shader binding order. */
+/** Lead-time schedule (hours): 49 hourly steps, 0..48. */
+export const HRRR_LEAD_TIME_HOURS: readonly number[] = Array.from(
+  { length: 49 },
+  (_, i) => i,
+);
+export const HRRR_LEAD_TIME_COUNT = HRRR_LEAD_TIME_HOURS.length;
+
+/** Constant 1 h dwell — kept as an array to match the GEFS-era pacing hook. */
+export const HRRR_LEAD_TIME_STEP_HOURS: readonly number[] = HRRR_LEAD_TIME_HOURS.map(
+  () => 1,
+);
+
+/** HRRR inits every 6 h since 2018-07-13 12:00 UTC (from root `time_resolution`). */
+export const INIT_TIME_ORIGIN = new Date("2018-07-13T12:00:00Z");
+const MS_PER_INIT_STEP = 6 * 60 * 60 * 1000;
+
+export function dateFromInitTimeIdx(idx: number): Date {
+  return new Date(INIT_TIME_ORIGIN.getTime() + idx * MS_PER_INIT_STEP);
+}
+
+export function initTimeIdxFromDate(date: Date, maxIdx: number): number {
+  const stepDiff = Math.round(
+    (date.getTime() - INIT_TIME_ORIGIN.getTime()) / MS_PER_INIT_STEP,
+  );
+  return Math.max(0, Math.min(maxIdx, stepDiff));
+}
+
+/** YYYY-MM-DD (UTC) for an <input type="date">. */
+export function isoDateString(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+/** Variables sampled; order is fixed and matches the side-channel band binding. */
 export const LCR_BANDS = [
   "temperature_2m",
   "precipitation_surface",
@@ -64,41 +84,10 @@ export const LCR_BANDS = [
 
 export type LcrBand = (typeof LCR_BANDS)[number];
 
-/**
- * UTC midnight of init_time[0] in the store. Each index advances by 24 h.
- * Confirmed via `scripts/inspect_gefs_zarr.py` (range 2020-10-01..2026-05-28).
- */
-export const INIT_TIME_ORIGIN = new Date("2020-10-01T00:00:00Z");
-
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
-
-export function dateFromInitTimeIdx(idx: number): Date {
-  return new Date(INIT_TIME_ORIGIN.getTime() + idx * MS_PER_DAY);
-}
-
-export function initTimeIdxFromDate(date: Date, maxIdx: number): number {
-  const dayDiff = Math.round(
-    (date.getTime() - INIT_TIME_ORIGIN.getTime()) / MS_PER_DAY,
-  );
-  return Math.max(0, Math.min(maxIdx, dayDiff));
-}
-
-/** YYYY-MM-DD (UTC) for an <input type="date">. */
-export function isoDateString(date: Date): string {
-  return date.toISOString().slice(0, 10);
-}
-
-/**
- * Field choices the user can render as the continuous background raster.
- * Each entry pins its own colormap + rescale range + LCR-shader bandMode.
- */
 export type FieldChoice = {
-  /** Zarr variable name (the array opened as ZarrLayer.node). */
   id: LcrBand;
   label: string;
-  /** Multiply raw zarr value by this to get display units (UI + rescale). */
   displayScale: number;
-  /** Rescale min/max in DISPLAY units. */
   rescaleMin: number;
   rescaleMax: number;
   colormapIndex: number;
@@ -128,16 +117,16 @@ export const FIELD_CHOICES: FieldChoice[] = [
     colormapIndex: COLORMAP_INDEX.blues,
     reversed: false,
     unit: "mm/h",
-    description: "Surface precipitation rate — the storm itself.",
+    description: "Surface precipitation rate.",
   },
   {
     id: "temperature_2m",
     label: "Temperature 2 m",
     displayScale: 1,
     rescaleMin: -40,
-    rescaleMax: 50,
-    colormapIndex: COLORMAP_INDEX.blues,
-    reversed: false,
+    rescaleMax: 40,
+    colormapIndex: COLORMAP_INDEX.puor,
+    reversed: true,
     unit: "°C",
     description: "2 m air temperature.",
   },

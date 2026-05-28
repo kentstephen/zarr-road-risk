@@ -6,8 +6,8 @@ export type FreewaySegment = {
 
 export type HexPixel = {
   h3_r5: string;
-  gefs_i: number;
-  gefs_j: number;
+  hrrr_x: number;
+  hrrr_y: number;
   lat: number;
   lon: number;
 };

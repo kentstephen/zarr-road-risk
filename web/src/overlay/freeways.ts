@@ -27,12 +27,12 @@ export function buildHexLcr(
   const chunkW = first.width;
 
   for (const hex of hexes) {
-    const chunkRow = Math.floor(hex.gefs_j / chunkH);
-    const chunkCol = Math.floor(hex.gefs_i / chunkW);
+    const chunkRow = Math.floor(hex.hrrr_y / chunkH);
+    const chunkCol = Math.floor(hex.hrrr_x / chunkW);
     const entry = chunks.get(`${chunkRow},${chunkCol}`);
     if (!entry) continue;
-    const lx = hex.gefs_i - entry.colStart;
-    const ly = hex.gefs_j - entry.rowStart;
+    const lx = hex.hrrr_x - entry.colStart;
+    const ly = hex.hrrr_y - entry.rowStart;
     const cellsPerLayer = entry.width * entry.height;
     const cellIdx = leadIdx * cellsPerLayer + ly * entry.width + lx;
     const sample = {} as Record<LcrBand, number>;
