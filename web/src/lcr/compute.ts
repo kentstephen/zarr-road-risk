@@ -115,15 +115,14 @@ export function computeLcr(x: LcrInputs): LcrResult {
 
 /** LCR -> RGBA hazard ramp (cold magma, white -> yellow -> red -> purple). */
 export function lcrColor(lcr: number): [number, number, number, number] {
-  if (!(lcr > 0)) return [40, 50, 64, 200]; // dim grey for "no hazard"
+  if (!(lcr > 0)) return [165, 170, 178, 180]; // silver for "no hazard"
   const t = Math.max(0, Math.min(1, lcr / 12));
-  // Hand-rolled approximation of magma_r: yellow -> red -> purple -> dark.
+  // Orange family: pale amber -> saturated orange -> deep burnt.
   const stops: [number, [number, number, number]][] = [
-    [0.0, [255, 240, 180]],
-    [0.25, [255, 180, 80]],
-    [0.5, [240, 90, 60]],
-    [0.75, [160, 40, 110]],
-    [1.0, [60, 10, 90]],
+    [0.0, [255, 220, 150]],
+    [0.33, [255, 170, 70]],
+    [0.66, [240, 120, 30]],
+    [1.0, [180, 70, 10]],
   ];
   for (let i = 1; i < stops.length; i++) {
     const [t1, c1] = stops[i]!;
@@ -134,9 +133,9 @@ export function lcrColor(lcr: number): [number, number, number, number] {
         Math.round(c0[0] + (c1[0] - c0[0]) * f),
         Math.round(c0[1] + (c1[1] - c0[1]) * f),
         Math.round(c0[2] + (c1[2] - c0[2]) * f),
-        230,
+        255,
       ];
     }
   }
-  return [60, 10, 90, 230];
+  return [180, 70, 10, 255];
 }
