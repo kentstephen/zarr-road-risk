@@ -31,3 +31,9 @@ deck.gl-raster/
 
 # Generated data artifacts
 data/
+
+# Web app build artifacts
+web/node_modules/
+web/dist/
+web/.vite/
+.DS_Store
