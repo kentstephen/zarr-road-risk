@@ -113,16 +113,20 @@ export function computeLcr(x: LcrInputs): LcrResult {
   return { lcr, factors, active, qpfMmH: qpf, windMph: wmph, tempF: tF };
 }
 
-/** LCR -> RGBA hazard ramp (cold magma, white -> yellow -> red -> purple). */
+/**
+ * LCR -> RGBA hazard ramp.
+ * No-hazard baseline is silver at low alpha so highlighted segments dominate.
+ * Active ramp jumps straight into saturated orange (no near-silver amber
+ * blending into the baseline) and deepens to burnt orange at the top.
+ * Deliberately no red — Stephen has reduced red sensitivity.
+ */
 export function lcrColor(lcr: number): [number, number, number, number] {
-  if (!(lcr > 0)) return [165, 170, 178, 180]; // silver for "no hazard"
+  if (!(lcr > 0)) return [165, 170, 178, 70]; // silver baseline, low alpha
   const t = Math.max(0, Math.min(1, lcr / 12));
-  // Orange family: pale amber -> saturated orange -> deep burnt.
   const stops: [number, [number, number, number]][] = [
-    [0.0, [255, 220, 150]],
-    [0.33, [255, 170, 70]],
-    [0.66, [240, 120, 30]],
-    [1.0, [180, 70, 10]],
+    [0.0, [255, 175, 60]],
+    [0.5, [240, 120, 25]],
+    [1.0, [170, 65, 5]],
   ];
   for (let i = 1; i < stops.length; i++) {
     const [t1, c1] = stops[i]!;
@@ -137,5 +141,5 @@ export function lcrColor(lcr: number): [number, number, number, number] {
       ];
     }
   }
-  return [180, 70, 10, 255];
+  return [170, 65, 5, 255];
 }

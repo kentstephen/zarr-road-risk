@@ -32,6 +32,20 @@ export const GEFS_LEAD_TIME_HOURS: readonly number[] = (() => {
 
 export const GEFS_LEAD_TIME_COUNT = GEFS_LEAD_TIME_HOURS.length;
 
+/**
+ * Lead-time chunk size on disk (verified via scripts/inspect_gefs_chunks.py).
+ * Slicing the lead_time dim to this size cuts the per-tile fetch count from
+ * 3 lead-chunks (all 181 leads) down to 1.
+ */
+export const GEFS_LEAD_CHUNK_SIZE = 64;
+
+/** Window of lead indices [start, end) that contains `leadIdx`. */
+export function leadChunkWindow(leadIdx: number): { start: number; end: number } {
+  const start = Math.floor(leadIdx / GEFS_LEAD_CHUNK_SIZE) * GEFS_LEAD_CHUNK_SIZE;
+  const end = Math.min(start + GEFS_LEAD_CHUNK_SIZE, GEFS_LEAD_TIME_COUNT);
+  return { start, end };
+}
+
 export const GEFS_LEAD_TIME_STEP_HOURS: readonly number[] = (() => {
   const steps: number[] = [];
   for (let i = 0; i < GEFS_LEAD_TIME_HOURS.length - 1; i++) {
@@ -134,10 +148,13 @@ export const FIELD_CHOICES: FieldChoice[] = [
     id: "temperature_2m",
     label: "Temperature 2 m",
     displayScale: 1,
+    // Symmetric around 0 °C so the diverging midpoint sits at freezing.
     rescaleMin: -40,
-    rescaleMax: 50,
-    colormapIndex: COLORMAP_INDEX.blues,
-    reversed: false,
+    rescaleMax: 40,
+    // Diverging purple→white→orange (no red — Stephen has reduced red sensitivity).
+    // `puor` ships orange→white→purple; reverse it so cold=purple, hot=orange.
+    colormapIndex: COLORMAP_INDEX.puor,
+    reversed: true,
     unit: "°C",
     description: "2 m air temperature.",
   },

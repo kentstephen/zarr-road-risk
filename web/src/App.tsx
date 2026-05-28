@@ -17,11 +17,12 @@ import {
   GEFS_LEAD_TIME_STEP_HOURS,
   initTimeIdxFromDate,
   LCR_BANDS,
+  leadChunkWindow,
   type FieldChoice,
   type LcrBand,
 } from "./gefs/metadata.js";
 import {
-  getTileData,
+  makeGetTileData,
   type GefsArrays,
   type GefsTileData,
 } from "./gefs/get-tile-data.js";
@@ -211,27 +212,39 @@ export default function App() {
     return () => cancelAnimationFrame(raf);
   }, [isPlaying, frameDurationMs]);
 
+  // Lead-time window: slice to the on-disk lead chunk (64 leads). Cuts
+  // per-tile fetches from 3 -> 1. The layer is keyed on `leadStart` so
+  // crossing a chunk boundary invalidates tiles and refetches the next 64.
+  const { start: leadStart, end: leadEnd } = leadChunkWindow(leadTimeIdx);
+  const leadDepth = leadEnd - leadStart;
+
   const selection = useMemo(
     () =>
       buildSelection({
         initTimeIdx,
         ensembleMemberIdx: ENSEMBLE_MEMBER_IDX,
+        leadStart,
+        leadEnd,
       }),
-    [initTimeIdx],
+    [initTimeIdx, leadStart, leadEnd],
   );
+
+  const getTileData = useMemo(() => makeGetTileData(leadDepth), [leadDepth]);
 
   const renderTile = useCallback(
     (data: GefsTileData) => {
       if (!colormapTexture) return { renderPipeline: [] };
       return makeRenderTile({
-        layerIndex: leadTimeIdx,
+        // The Texture2DArray now holds only the windowed leads, so the
+        // layer index is relative to the window start.
+        layerIndex: leadTimeIdx - leadStart,
         field,
         colormapTexture,
         rescaleMin,
         rescaleMax,
       })(data);
     },
-    [leadTimeIdx, colormapTexture, field, rescaleMin, rescaleMax],
+    [leadTimeIdx, leadStart, colormapTexture, field, rescaleMin, rescaleMax],
   );
 
   const deckLayers = useMemo(() => {
@@ -239,9 +252,9 @@ export default function App() {
     if (arrs && colormapTexture && layers.showRaster) {
       out.push(
         new ZarrLayer<zarr.Readable, "float32", GefsTileData>({
-          // id keyed on init + field so changing either fully invalidates
-          // the inner tile cache (the bytes are different).
-          id: `gefs-zarr-${initTimeIdx}-${field.id}`,
+          // id keyed on init + field + lead window so each lead-chunk
+          // boundary refetches the next 64 leads with the new slice.
+          id: `gefs-zarr-${initTimeIdx}-${field.id}-${leadStart}`,
           node: arrs[field.id] as unknown as zarr.Array<
             "float32",
             zarr.Readable
@@ -280,11 +293,13 @@ export default function App() {
     colormapTexture,
     initTimeIdx,
     selection,
+    getTileData,
     renderTile,
     segments,
     hexes,
     hexLcr,
     leadTimeIdx,
+    leadStart,
     field.id,
     rescaleMin,
     rescaleMax,
