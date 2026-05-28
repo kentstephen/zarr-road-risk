@@ -24,8 +24,8 @@ import {
 import {
   dateFromInitTimeIdx,
   FIELD_CHOICES,
-  GEFS_LEAD_TIME_COUNT,
-  GEFS_LEAD_TIME_HOURS,
+  HRRR_LEAD_TIME_COUNT as GEFS_LEAD_TIME_COUNT,
+  HRRR_LEAD_TIME_HOURS as GEFS_LEAD_TIME_HOURS,
   INIT_TIME_ORIGIN,
   initTimeIdxFromDate,
   isoDateString,

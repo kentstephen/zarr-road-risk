@@ -6,7 +6,7 @@ import {
 import type { Texture } from "@luma.gl/core";
 import { SampleTexture2DArray } from "../gpu/sample-texture-2d-array.js";
 import type { FieldChoice } from "./metadata.js";
-import type { GefsTileData } from "./get-tile-data.js";
+import type { HrrrTileData } from "./get-tile-data.js";
 
 export type MakeRenderTileArgs = {
   layerIndex: number;
@@ -26,7 +26,7 @@ export type MakeRenderTileArgs = {
  */
 export function makeRenderTile(args: MakeRenderTileArgs) {
   const { layerIndex, field, colormapTexture, rescaleMin, rescaleMax } = args;
-  return function renderTile(data: GefsTileData): RenderTileResult {
+  return function renderTile(data: HrrrTileData): RenderTileResult {
     return {
       renderPipeline: [
         {

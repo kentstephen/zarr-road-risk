@@ -12,19 +12,18 @@ import * as zarr from "zarrita";
 import {
   DEFAULT_FIELD_ID,
   FIELD_CHOICES,
-  GEFS_GEOZARR_ATTRS,
-  GEFS_LEAD_TIME_COUNT,
-  GEFS_LEAD_TIME_STEP_HOURS,
+  HRRR_GEOZARR_ATTRS,
+  HRRR_LEAD_TIME_COUNT,
+  HRRR_LEAD_TIME_STEP_HOURS,
   initTimeIdxFromDate,
   LCR_BANDS,
-  leadChunkWindow,
   type FieldChoice,
   type LcrBand,
 } from "./gefs/metadata.js";
 import {
-  makeGetTileData,
-  type GefsArrays,
-  type GefsTileData,
+  getTileData,
+  type HrrrArrays,
+  type HrrrTileData,
 } from "./gefs/get-tile-data.js";
 import { makeRenderTile } from "./gefs/render-tile.js";
 import { buildSelection } from "./gefs/selection.js";
@@ -39,9 +38,8 @@ const MAP_STYLE_URL =
   "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json";
 
 const ZARR_URL =
-  "https://data.source.coop/dynamical/noaa-gefs-forecast-35-day/v0.2.0.zarr";
-const ENSEMBLE_MEMBER_IDX = 0;
-const BASE_STEP_HOURS = 3;
+  "https://data.source.coop/dynamical/noaa-hrrr-forecast-48-hour/v0.1.0.zarr";
+const BASE_STEP_HOURS = 1;
 const INITIAL_FRAME_MS = 140;
 const DEFAULT_INIT_DATE = new Date("2026-01-14T00:00:00Z");
 
@@ -49,7 +47,7 @@ type PickInfo = { hex: HexPixel; result: LcrResult } | null;
 
 export default function App() {
   const mapRef = useRef<MapRef>(null);
-  const [arrs, setArrs] = useState<GefsArrays | null>(null);
+  const [arrs, setArrs] = useState<HrrrArrays | null>(null);
   const [initTimeIdx, setInitTimeIdx] = useState(0);
   const [leadTimeIdx, setLeadTimeIdx] = useState(0);
   const [isPlaying, setIsPlaying] = useState(true);
@@ -99,7 +97,7 @@ export default function App() {
   }, [device, colormapImage]);
 
   // Open all 8 zarr arrays (cheap metadata-only). Raster uses one at a time;
-  // LCR side channel uses all 8 to fetch hex-chunk values in the background.
+  // LCR side channel uses all 8 to fetch hex-shard values in the background.
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -111,7 +109,7 @@ export default function App() {
       const opened = await Promise.all(
         LCR_BANDS.map((b) => zarr.open.v3(root.resolve(b), { kind: "array" })),
       );
-      const out = {} as GefsArrays;
+      const out = {} as HrrrArrays;
       for (let i = 0; i < LCR_BANDS.length; i++) {
         const a = opened[i]!;
         if (!a.is("float32")) {
@@ -145,9 +143,9 @@ export default function App() {
     };
   }, []);
 
-  // ---- LCR side channel: fetch the 8 bands ONLY for chunks covering hexes.
-  // Runs whenever (init, ensemble, hexes, arrs) change. Each chunk lands in
-  // lcrChunksRef as soon as its 8 bands are back, and we bump `chunksVersion`
+  // ---- LCR side channel: fetch the 8 bands ONLY for shards covering hexes.
+  // Runs whenever (init, hexes, arrs) change. Each shard lands in
+  // lcrChunksRef as soon as its 8 bands are back; we bump `chunksVersion`
   // so the per-frame `hexLcr` recomputes.
   const lcrChunksRef = useRef<Map<string, ChunkEntry>>(new Map());
   const [chunksVersion, setChunksVersion] = useState(0);
@@ -164,7 +162,6 @@ export default function App() {
         arrs,
         hexes,
         initTimeIdx,
-        ensembleMemberIdx: ENSEMBLE_MEMBER_IDX,
         signal: ctrl.signal,
         onChunkLoaded: (entry) => {
           lcrChunksRef.current.set(
@@ -200,10 +197,10 @@ export default function App() {
     let last = performance.now();
     const loop = (now: number) => {
       const cur = leadRef.current;
-      const stepH = GEFS_LEAD_TIME_STEP_HOURS[cur] ?? BASE_STEP_HOURS;
+      const stepH = HRRR_LEAD_TIME_STEP_HOURS[cur] ?? BASE_STEP_HOURS;
       const dwell = frameDurationMs * (stepH / BASE_STEP_HOURS);
       if (now - last >= dwell) {
-        setLeadTimeIdx((i) => (i + 1) % GEFS_LEAD_TIME_COUNT);
+        setLeadTimeIdx((i) => (i + 1) % HRRR_LEAD_TIME_COUNT);
         last = now;
       }
       raf = requestAnimationFrame(loop);
@@ -212,64 +209,53 @@ export default function App() {
     return () => cancelAnimationFrame(raf);
   }, [isPlaying, frameDurationMs]);
 
-  // Lead-time window: slice to the on-disk lead chunk (64 leads). Cuts
-  // per-tile fetches from 3 -> 1. The layer is keyed on `leadStart` so
-  // crossing a chunk boundary invalidates tiles and refetches the next 64.
-  const { start: leadStart, end: leadEnd } = leadChunkWindow(leadTimeIdx);
-  const leadDepth = leadEnd - leadStart;
-
+  // HRRR shard already covers all 49 leads; no lead-window slicing needed.
   const selection = useMemo(
-    () =>
-      buildSelection({
-        initTimeIdx,
-        ensembleMemberIdx: ENSEMBLE_MEMBER_IDX,
-        leadStart,
-        leadEnd,
-      }),
-    [initTimeIdx, leadStart, leadEnd],
+    () => buildSelection({ initTimeIdx }),
+    [initTimeIdx],
   );
 
-  const getTileData = useMemo(() => makeGetTileData(leadDepth), [leadDepth]);
-
   const renderTile = useCallback(
-    (data: GefsTileData) => {
+    (data: HrrrTileData) => {
       if (!colormapTexture) return { renderPipeline: [] };
       return makeRenderTile({
-        // The Texture2DArray now holds only the windowed leads, so the
-        // layer index is relative to the window start.
-        layerIndex: leadTimeIdx - leadStart,
+        layerIndex: leadTimeIdx,
         field,
         colormapTexture,
         rescaleMin,
         rescaleMax,
       })(data);
     },
-    [leadTimeIdx, leadStart, colormapTexture, field, rescaleMin, rescaleMax],
+    [leadTimeIdx, colormapTexture, field, rescaleMin, rescaleMax],
   );
 
   const deckLayers = useMemo(() => {
     const out: unknown[] = [];
     if (arrs && colormapTexture && layers.showRaster) {
       out.push(
-        new ZarrLayer<zarr.Readable, "float32", GefsTileData>({
-          // id keyed on init + field + lead window so each lead-chunk
-          // boundary refetches the next 64 leads with the new slice.
-          id: `gefs-zarr-${initTimeIdx}-${field.id}-${leadStart}`,
+        new ZarrLayer<zarr.Readable, "float32", HrrrTileData>({
+          id: `hrrr-zarr-${initTimeIdx}-${field.id}`,
           node: arrs[field.id] as unknown as zarr.Array<
             "float32",
             zarr.Readable
           >,
-          metadata: GEFS_GEOZARR_ATTRS,
+          metadata: HRRR_GEOZARR_ATTRS,
           selection,
           getTileData,
           renderTile,
+          // source.coop supports HTTP/2 multiplexing.
           maxRequests: 20,
           maxCacheSize: 10,
           opacity: rasterOpacity,
           updateTriggers: {
             renderTile: [leadTimeIdx, field.id, rescaleMin, rescaleMax],
           },
-          beforeId: "boundary_county",
+          // positron-gl-style stack: water fill is at index 9, boundary_county
+          // at index 7 — so beforeId="boundary_county" inadvertently put the
+          // raster below water. aeroway-runway (index 11) is the first layer
+          // above water_shadow, which lands the raster above water polygons
+          // (clouds visible over oceans + lakes) but below roads / labels.
+          beforeId: "aeroway-runway",
         } as never),
       );
     }
@@ -293,13 +279,11 @@ export default function App() {
     colormapTexture,
     initTimeIdx,
     selection,
-    getTileData,
     renderTile,
     segments,
     hexes,
     hexLcr,
     leadTimeIdx,
-    leadStart,
     field.id,
     rescaleMin,
     rescaleMax,
