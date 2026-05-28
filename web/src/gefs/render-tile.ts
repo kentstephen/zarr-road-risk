@@ -4,7 +4,7 @@ import {
   LinearRescale,
 } from "@developmentseed/deck.gl-raster/gpu-modules";
 import type { Texture } from "@luma.gl/core";
-import { FieldShader } from "../gpu/field.js";
+import { SampleTexture2DArray } from "../gpu/sample-texture-2d-array.js";
 import type { FieldChoice } from "./metadata.js";
 import type { GefsTileData } from "./get-tile-data.js";
 
@@ -17,9 +17,12 @@ export type MakeRenderTileArgs = {
 };
 
 /**
- * Pipeline: FieldShader writes the band's scalar into color.r,
- * LinearRescale maps [rescaleMin, rescaleMax] -> [0, 1], Colormap turns it
- * into RGBA via the band's colormap.
+ * Pipeline (matches the ECMWF example): sample the band texture at the
+ * current lead, LinearRescale to [0,1], Colormap to RGBA.
+ *
+ * Per-band scalar transforms (prate → mm/h, wind → mph, °C→°F) are folded
+ * into the rescaleMin/rescaleMax we choose for each field, since the GPU
+ * sees the raw value from the zarr (kg/m²/s, m/s, °C).
  */
 export function makeRenderTile(args: MakeRenderTileArgs) {
   const { layerIndex, field, colormapTexture, rescaleMin, rescaleMax } = args;
@@ -27,25 +30,16 @@ export function makeRenderTile(args: MakeRenderTileArgs) {
     return {
       renderPipeline: [
         {
-          module: FieldShader,
-          props: {
-            layerIndex,
-            bandMode: field.bandMode,
-            tempTex: data.textures.temperature_2m,
-            prateTex: data.textures.precipitation_surface,
-            csnowTex: data.textures.categorical_snow_surface,
-            cfrzrTex: data.textures.categorical_freezing_rain_surface,
-            cicepTex: data.textures.categorical_ice_pellets_surface,
-            uTex: data.textures.wind_u_10m,
-            vTex: data.textures.wind_v_10m,
-            tccTex: data.textures.total_cloud_cover_atmosphere,
-          },
+          module: SampleTexture2DArray,
+          props: { dataTex: data.texture, layerIndex },
         },
         {
+          // rescale min/max are in DISPLAY units; divide by displayScale to
+          // bring them back into the raw zarr units that the GPU samples.
           module: LinearRescale,
           props: {
-            rescaleMin: rescaleMin ?? field.rescaleMin,
-            rescaleMax: rescaleMax ?? field.rescaleMax,
+            rescaleMin: (rescaleMin ?? field.rescaleMin) / field.displayScale,
+            rescaleMax: (rescaleMax ?? field.rescaleMax) / field.displayScale,
           },
         },
         {

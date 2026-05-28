@@ -181,6 +181,7 @@ export function ControlPanel(props: ControlPanelProps) {
               onValueChange={(details) =>
                 props.onLeadTimeIdxChange(details.value[0])
               }
+              onDoubleClick={() => props.onLeadTimeIdxChange(0)}
             >
               <Slider.Control>
                 <Slider.Track>
@@ -206,6 +207,7 @@ export function ControlPanel(props: ControlPanelProps) {
             onValueChange={(details) =>
               props.onFrameDurationMsChange(details.value[0])
             }
+            onDoubleClick={() => props.onFrameDurationMsChange(140)}
           >
             <Slider.Control>
               <Slider.Track>
@@ -242,6 +244,7 @@ export function ControlPanel(props: ControlPanelProps) {
             value={[rasterOpacity]}
             aria-label={["Raster opacity"]}
             onValueChange={(d) => props.onRasterOpacityChange(d.value[0])}
+            onDoubleClick={() => props.onRasterOpacityChange(0.5)}
           >
             <Slider.Control>
               <Slider.Track>
@@ -261,14 +264,20 @@ export function ControlPanel(props: ControlPanelProps) {
             </Text>
           }
         >
-          <RangeSlider
-            min={sliderMin}
-            max={sliderMax}
-            step={stepGuess}
-            value={[rescaleMin, rescaleMax]}
-            onChange={([a, b]) => props.onRescaleChange(a, b)}
-            thumbLabels={["Rescale min", "Rescale max"]}
-          />
+          <div
+            onDoubleClick={() =>
+              props.onRescaleChange(field.rescaleMin, field.rescaleMax)
+            }
+          >
+            <RangeSlider
+              min={sliderMin}
+              max={sliderMax}
+              step={stepGuess}
+              value={[rescaleMin, rescaleMax]}
+              onChange={([a, b]) => props.onRescaleChange(a, b)}
+              thumbLabels={["Rescale min", "Rescale max"]}
+            />
+          </div>
         </Field>
 
         <Stack gap="1">

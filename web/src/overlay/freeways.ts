@@ -1,41 +1,43 @@
 import { H3HexagonLayer } from "@deck.gl/geo-layers";
 import { PathLayer } from "@deck.gl/layers";
 import { computeLcr, lcrColor, type LcrResult } from "../lcr/compute.js";
-import type { GefsTileData } from "../gefs/get-tile-data.js";
+import type { ChunkEntry } from "../lcr/side-channel.js";
 import { LCR_BANDS, type LcrBand } from "../gefs/metadata.js";
 import type { FreewaySegment, HexPixel } from "./types.js";
 
 /**
- * Build the per-hex LCR map for the current animation frame.
+ * Build the per-hex LCR map for the current animation frame, sampling the
+ * side-channel chunk cache at each hex pixel.
  *
- * Scans the currently-cached ZarrLayer tiles for any tile that covers a hex
- * pixel's (gefs_i, gefs_j), samples all 8 bands at the (lead, j-tileY, i-tileX)
- * cell of the CPU-side `pixels` arrays, and runs the same LCR ladder as the
- * GPU shader. Returns h3_r5 -> LcrResult.
- *
- * Hexes whose pixel falls outside any cached tile are simply absent from the
- * result, matching the lazy-tile behavior of the raster — vector layers
- * display "no data" for those cells.
+ * Hexes whose chunk isn't loaded yet are absent from the result — the path
+ * layer falls back to silver for those.
  */
 export function buildHexLcr(
   hexes: HexPixel[],
-  tiles: readonly GefsTileData[],
+  chunks: ReadonlyMap<string, ChunkEntry>,
   leadIdx: number,
 ): Map<string, LcrResult> {
   const out = new Map<string, LcrResult>();
-  if (tiles.length === 0) return out;
+  if (chunks.size === 0) return out;
+
+  // Determine chunk grid step from any one entry.
+  const first = chunks.values().next().value as ChunkEntry | undefined;
+  if (!first) return out;
+  const chunkH = first.height;
+  const chunkW = first.width;
 
   for (const hex of hexes) {
-    const tile = findTileFor(tiles, hex.gefs_i, hex.gefs_j);
-    if (!tile) continue;
-    const lx = hex.gefs_i - tile.tileX;
-    const ly = hex.gefs_j - tile.tileY;
-    const cellsPerLayer = tile.width * tile.height;
-    const cellIdx = leadIdx * cellsPerLayer + ly * tile.width + lx;
+    const chunkRow = Math.floor(hex.gefs_j / chunkH);
+    const chunkCol = Math.floor(hex.gefs_i / chunkW);
+    const entry = chunks.get(`${chunkRow},${chunkCol}`);
+    if (!entry) continue;
+    const lx = hex.gefs_i - entry.colStart;
+    const ly = hex.gefs_j - entry.rowStart;
+    const cellsPerLayer = entry.width * entry.height;
+    const cellIdx = leadIdx * cellsPerLayer + ly * entry.width + lx;
     const sample = {} as Record<LcrBand, number>;
     for (const band of LCR_BANDS) {
-      const arr = tile.pixels[band];
-      sample[band] = arr[cellIdx] ?? NaN;
+      sample[band] = entry.pixels[band][cellIdx] ?? NaN;
     }
     const result = computeLcr({
       tC: sample.temperature_2m,
@@ -52,29 +54,10 @@ export function buildHexLcr(
   return out;
 }
 
-function findTileFor(
-  tiles: readonly GefsTileData[],
-  i: number,
-  j: number,
-): GefsTileData | null {
-  for (const t of tiles) {
-    if (
-      i >= t.tileX &&
-      i < t.tileX + t.width &&
-      j >= t.tileY &&
-      j < t.tileY + t.height
-    ) {
-      return t;
-    }
-  }
-  return null;
-}
-
 export type FreewayLayerProps = {
   segments: FreewaySegment[];
   hexes: HexPixel[];
   hexLcr: Map<string, LcrResult>;
-  /** Optional update trigger; pass leadIdx so deck.gl rebuilds accessors per frame. */
   updateKey: number;
   onHexPick?: (h: HexPixel | null, lcr: LcrResult | undefined) => void;
   showPaths?: boolean;

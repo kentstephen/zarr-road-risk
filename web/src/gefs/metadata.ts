@@ -93,9 +93,12 @@ export function isoDateString(date: Date): string {
  * Each entry pins its own colormap + rescale range + LCR-shader bandMode.
  */
 export type FieldChoice = {
-  id: string;
+  /** Zarr variable name (the array opened as ZarrLayer.node). */
+  id: LcrBand;
   label: string;
-  bandMode: 0 | 1 | 2 | 3 | 4;
+  /** Multiply raw zarr value by this to get display units (UI + rescale). */
+  displayScale: number;
+  /** Rescale min/max in DISPLAY units. */
   rescaleMin: number;
   rescaleMax: number;
   colormapIndex: number;
@@ -108,58 +111,36 @@ export const FIELD_CHOICES: FieldChoice[] = [
   {
     id: "total_cloud_cover_atmosphere",
     label: "Cloud cover",
-    bandMode: 4,
+    displayScale: 1,
     rescaleMin: 0,
     rescaleMax: 100,
-    colormapIndex: COLORMAP_INDEX.gray,
-    reversed: true,
+    colormapIndex: COLORMAP_INDEX.blues,
+    reversed: false,
     unit: "%",
-    description: "Total cloud cover — looks like satellite imagery.",
+    description: "Total cloud cover.",
   },
   {
     id: "precipitation_surface",
     label: "Precipitation rate",
-    bandMode: 2,
+    displayScale: 3600, // kg/m²/s -> mm/h
     rescaleMin: 0,
     rescaleMax: 2,
-    colormapIndex: COLORMAP_INDEX.gray,
-    reversed: true,
+    colormapIndex: COLORMAP_INDEX.blues,
+    reversed: false,
     unit: "mm/h",
     description: "Surface precipitation rate — the storm itself.",
   },
   {
     id: "temperature_2m",
     label: "Temperature 2 m",
-    bandMode: 1,
+    displayScale: 1,
     rescaleMin: -40,
     rescaleMax: 50,
-    colormapIndex: COLORMAP_INDEX.gray,
-    reversed: true,
+    colormapIndex: COLORMAP_INDEX.blues,
+    reversed: false,
     unit: "°C",
     description: "2 m air temperature.",
   },
-  {
-    id: "wind_speed_10m",
-    label: "Wind speed 10 m",
-    bandMode: 3,
-    rescaleMin: 0,
-    rescaleMax: 50,
-    colormapIndex: COLORMAP_INDEX.gray,
-    reversed: true,
-    unit: "mph",
-    description: "sqrt(u² + v²) of 10 m wind.",
-  },
-  {
-    id: "lcr",
-    label: "LCR — loss-of-control risk",
-    bandMode: 0,
-    rescaleMin: 0,
-    rescaleMax: 12,
-    colormapIndex: COLORMAP_INDEX.gray,
-    reversed: true,
-    unit: "0..12",
-    description: "Composite winter-hazard ladder (icyroadsafety.com/lcr/).",
-  },
 ];
 
-export const DEFAULT_FIELD_ID = "total_cloud_cover_atmosphere";
+export const DEFAULT_FIELD_ID: LcrBand = "total_cloud_cover_atmosphere";

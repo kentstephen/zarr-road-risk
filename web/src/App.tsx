@@ -15,13 +15,13 @@ import {
   GEFS_GEOZARR_ATTRS,
   GEFS_LEAD_TIME_COUNT,
   GEFS_LEAD_TIME_STEP_HOURS,
-  INIT_TIME_ORIGIN,
   initTimeIdxFromDate,
   LCR_BANDS,
   type FieldChoice,
+  type LcrBand,
 } from "./gefs/metadata.js";
 import {
-  makeGetTileData,
+  getTileData,
   type GefsArrays,
   type GefsTileData,
 } from "./gefs/get-tile-data.js";
@@ -29,18 +29,19 @@ import { makeRenderTile } from "./gefs/render-tile.js";
 import { buildSelection } from "./gefs/selection.js";
 import { DeckGlOverlay } from "./lib/deckgl-overlay.js";
 import type { LcrResult } from "./lcr/compute.js";
+import { runLcrSideChannel, type ChunkEntry } from "./lcr/side-channel.js";
 import { buildFreewayLayers, buildHexLcr } from "./overlay/freeways.js";
 import type { FreewaySegment, HexPixel } from "./overlay/types.js";
+import { ControlPanel, type LayerToggles } from "./ui/ControlPanel.js";
+
 const MAP_STYLE_URL =
   "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json";
-import { ControlPanel, type LayerToggles } from "./ui/ControlPanel.js";
 
 const ZARR_URL =
   "https://data.source.coop/dynamical/noaa-gefs-forecast-35-day/v0.2.0.zarr";
 const ENSEMBLE_MEMBER_IDX = 0;
 const BASE_STEP_HOURS = 3;
 const INITIAL_FRAME_MS = 140;
-// Demo default — a mid-January 2026 forecast init for winter weather context.
 const DEFAULT_INIT_DATE = new Date("2026-01-14T00:00:00Z");
 
 type PickInfo = { hex: HexPixel; result: LcrResult } | null;
@@ -53,12 +54,11 @@ export default function App() {
   const [isPlaying, setIsPlaying] = useState(true);
   const [frameDurationMs, setFrameDurationMs] = useState(INITIAL_FRAME_MS);
 
-  const [fieldId, setFieldId] = useState<string>(DEFAULT_FIELD_ID);
+  const [fieldId, setFieldId] = useState<LcrBand>(DEFAULT_FIELD_ID);
   const field: FieldChoice =
     FIELD_CHOICES.find((f) => f.id === fieldId) ?? FIELD_CHOICES[0]!;
   const [rescaleMin, setRescaleMin] = useState(field.rescaleMin);
   const [rescaleMax, setRescaleMax] = useState(field.rescaleMax);
-  // When the band changes, reset the rescale to the band's defaults.
   useEffect(() => {
     setRescaleMin(field.rescaleMin);
     setRescaleMax(field.rescaleMax);
@@ -67,9 +67,9 @@ export default function App() {
   const [layers, setLayers] = useState<LayerToggles>({
     showRaster: true,
     showPaths: true,
-    showHexes: true,
+    showHexes: false,
   });
-  const [rasterOpacity, setRasterOpacity] = useState(0.75);
+  const [rasterOpacity, setRasterOpacity] = useState(0.5);
 
   const [device, setDevice] = useState<Device | null>(null);
   const [colormapImage, setColormapImage] = useState<ImageData | null>(null);
@@ -97,6 +97,8 @@ export default function App() {
     setColormapTexture(createColormapTexture(device, colormapImage));
   }, [device, colormapImage]);
 
+  // Open all 8 zarr arrays (cheap metadata-only). Raster uses one at a time;
+  // LCR side channel uses all 8 to fetch hex-chunk values in the background.
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -118,11 +120,8 @@ export default function App() {
       }
       if (cancelled) return;
       setArrs(out);
-      // Snap to default mid-January 2026 init, clamped to the store range.
-      const first = out[LCR_BANDS[0]!];
-      const maxIdx = first.shape[0]! - 1;
-      const targetIdx = initTimeIdxFromDate(DEFAULT_INIT_DATE, maxIdx);
-      setInitTimeIdx(targetIdx);
+      const maxIdx = out[LCR_BANDS[0]!].shape[0]! - 1;
+      setInitTimeIdx(initTimeIdxFromDate(DEFAULT_INIT_DATE, maxIdx));
     })();
     return () => {
       cancelled = true;
@@ -145,22 +144,50 @@ export default function App() {
     };
   }, []);
 
-  const tilesRef = useRef<Map<string, GefsTileData>>(new Map());
-  const [tilesVersion, setTilesVersion] = useState(0);
+  // ---- LCR side channel: fetch the 8 bands ONLY for chunks covering hexes.
+  // Runs whenever (init, ensemble, hexes, arrs) change. Each chunk lands in
+  // lcrChunksRef as soon as its 8 bands are back, and we bump `chunksVersion`
+  // so the per-frame `hexLcr` recomputes.
+  const lcrChunksRef = useRef<Map<string, ChunkEntry>>(new Map());
+  const [chunksVersion, setChunksVersion] = useState(0);
 
-  // When the init changes, drop the registry (tiles are init-specific).
   useEffect(() => {
-    tilesRef.current.clear();
-    setTilesVersion((v) => v + 1);
-  }, [initTimeIdx]);
+    if (!arrs || hexes.length === 0) return;
+    lcrChunksRef.current.clear();
+    setChunksVersion((v) => v + 1);
+    const ctrl = new AbortController();
+    // Delay 1.2 s so the raster ZarrLayer gets first crack at the network
+    // budget. The user sees the raster fill in, then roads colorize.
+    const timer = setTimeout(() => {
+      runLcrSideChannel({
+        arrs,
+        hexes,
+        initTimeIdx,
+        ensembleMemberIdx: ENSEMBLE_MEMBER_IDX,
+        signal: ctrl.signal,
+        onChunkLoaded: (entry) => {
+          lcrChunksRef.current.set(
+            `${entry.chunkRow},${entry.chunkCol}`,
+            entry,
+          );
+          setChunksVersion((v) => v + 1);
+        },
+      }).catch((err) => {
+        if (!ctrl.signal.aborted) console.error("LCR side channel failed", err);
+      });
+    }, 1200);
+    return () => {
+      clearTimeout(timer);
+      ctrl.abort();
+    };
+  }, [arrs, hexes, initTimeIdx]);
 
   const initTimeCount = arrs ? arrs[LCR_BANDS[0]!].shape[0]! : 0;
 
   const hexLcr = useMemo(() => {
     if (hexes.length === 0) return new Map<string, LcrResult>();
-    const tiles = Array.from(tilesRef.current.values());
-    return buildHexLcr(hexes, tiles, leadTimeIdx);
-  }, [hexes, leadTimeIdx, tilesVersion]);
+    return buildHexLcr(hexes, lcrChunksRef.current, leadTimeIdx);
+  }, [hexes, leadTimeIdx, chunksVersion]);
 
   const leadRef = useRef(leadTimeIdx);
   useEffect(() => {
@@ -193,20 +220,6 @@ export default function App() {
     [initTimeIdx],
   );
 
-  const wrappedGetTileData = useMemo(() => {
-    if (!arrs) return null;
-    const base = makeGetTileData(arrs);
-    return async (
-      ...args: Parameters<ReturnType<typeof makeGetTileData>>
-    ): Promise<GefsTileData> => {
-      const data = await base(...args);
-      const key = `${data.tileY},${data.tileX}`;
-      tilesRef.current.set(key, data);
-      setTilesVersion((v) => v + 1);
-      return data;
-    };
-  }, [arrs]);
-
   const renderTile = useCallback(
     (data: GefsTileData) => {
       if (!colormapTexture) return { renderPipeline: [] };
@@ -223,20 +236,22 @@ export default function App() {
 
   const deckLayers = useMemo(() => {
     const out: unknown[] = [];
-    if (arrs && colormapTexture && wrappedGetTileData && layers.showRaster) {
+    if (arrs && colormapTexture && layers.showRaster) {
       out.push(
         new ZarrLayer<zarr.Readable, "float32", GefsTileData>({
-          id: `gefs-zarr-${initTimeIdx}`,
-          node: arrs[LCR_BANDS[0]!] as unknown as zarr.Array<
+          // id keyed on init + field so changing either fully invalidates
+          // the inner tile cache (the bytes are different).
+          id: `gefs-zarr-${initTimeIdx}-${field.id}`,
+          node: arrs[field.id] as unknown as zarr.Array<
             "float32",
             zarr.Readable
           >,
           metadata: GEFS_GEOZARR_ATTRS,
           selection,
-          getTileData: wrappedGetTileData,
+          getTileData,
           renderTile,
           maxRequests: 20,
-          maxCacheSize: 4,
+          maxCacheSize: 10,
           opacity: rasterOpacity,
           updateTriggers: {
             renderTile: [leadTimeIdx, field.id, rescaleMin, rescaleMax],
@@ -263,7 +278,6 @@ export default function App() {
   }, [
     arrs,
     colormapTexture,
-    wrappedGetTileData,
     initTimeIdx,
     selection,
     renderTile,
@@ -295,7 +309,7 @@ export default function App() {
       </MaplibreMap>
       <ControlPanel
         field={field}
-        onFieldChange={setFieldId}
+        onFieldChange={(id) => setFieldId(id as LcrBand)}
         leadTimeIdx={leadTimeIdx}
         initTimeIdx={initTimeIdx}
         initTimeCount={initTimeCount}
@@ -321,6 +335,3 @@ export default function App() {
     </div>
   );
 }
-
-// Avoid unused-var warning on INIT_TIME_ORIGIN re-export consumers.
-void INIT_TIME_ORIGIN;
