@@ -1,5 +1,7 @@
 # zarr-road-risk
 
+**Live: <https://kentstephen.github.io/zarr-road-risk/>**
+
 Live road-weather hazard viewer: NOAA **HRRR** forecast rasters rendered in the
 browser, with US freeways colored by **LCR** (Loss-of-Control Risk, the 0–12
 icy-road driving-hazard scale — <https://icyroadsafety.com/lcr/>). A right-side
@@ -9,8 +11,6 @@ forecast animates.
 The HRRR store is read directly from the cloud per frame (no server, no
 pre-render); the freeway geometry and the road/state lookup ship as small static
 assets built by the Python ETL.
-
-![freeway network preview](motorways_preview.png)
 
 ## How it fits together
 
