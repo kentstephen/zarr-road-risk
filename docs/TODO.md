@@ -2,6 +2,50 @@
 
 Tracked follow-ups from the browser LCR demo work. Captured 2026-05-28.
 
+## In progress (2026-05-29) — app as a queryable backend
+
+Goal: app becomes a **backend**, not a picking UI. A right-hand-side table of
+roads-affected-by-state, computed live (works "as if opening during a
+developing storm"), and queryable outside the viz on the CLI with DuckDB.
+Decisions locked this session:
+
+- **In-browser reader = hyparquet (hyparam), NOT duckdb-wasm.** The table has
+  to move fast; hyparquet reads the parquet columnar over HTTP, no 30 MB wasm.
+  hyparquet-compressors for zstd; hyparquet-writer if we want in-app export.
+- **The parquet is the shared artifact.** App reads `data/road_table.parquet`
+  via hyparquet; CLI reads the *same file* via `duckdb -c "from
+  'road_table.parquet'"`. No server (MVP = duckdb in-memory).
+- **Road names + state via Overture join** (H3 columnar first, spatial sjoin
+  fallback). State comes from Overture `division_area` (`subtype='region'`) —
+  Stephen OK'd Overture divisions over Natural Earth since it's easier.
+- **No ramps.** Overture flags ramps in `road_flags` containing `is_link`
+  (NOT `subclass`). Filter them out in the motorway query.
+- **US-only.** HRRR is essentially CONUS (marginal MX/CA overlap we don't
+  care about), and cell 9 of the hex notebook clips to the HRRR grid anyway.
+  Keep the `country == "United States"` filter in build_freeway_parquets.
+
+Done this session:
+- `scripts/build_road_table.py` — staged ETL. Pulls Overture motorways
+  (ramp-filtered) + admin1 regions for the hex bbox via DuckDB (Overture's
+  documented pattern: `bbox.xmin BETWEEN ... hive_partitioning=1`), H3-joins
+  road names onto our r5 hexes (longest named road per cell), point-in-polygon
+  for state, writes `data/road_table.parquet`. Caches Overture pulls.
+- `scripts/preview_motorways.py` — fetch + matplotlib PNG of the road network.
+- `explore_overture_roads.ipynb` — lonboard `viz(gdf)` of the ramp-filtered
+  Overture motorways (the geometry feeding the join).
+- Re-ran `build_freeway_parquets.ipynb` → fresh US hexes (5912) / segs (2650).
+
+Still to do on the backend:
+- Run `build_road_table.py` end-to-end (the ramp-filtered refetch + join had
+  not been run as of session end — kept getting interrupted). Verify state +
+  road_name coverage; fall back to spatial sjoin if H3 columnar leaves cells
+  nameless.
+- Wire hyparquet into `web/` to read `road_table.parquet`; build the live
+  affected-roads Arrow/columnar table joined to `hexLcr`.
+- Right-hand-side roads-by-state panel; de-emphasize picking.
+- "Current storm" button (point init_time at latest cycle); lead-range
+  aggregation of `hexLcr` over selected leads.
+
 ## Next session (Stephen, end of 2026-05-28)
 
 - **App as SQL backend, not just a pickable map.** The interesting move is
@@ -33,16 +77,13 @@ Tracked follow-ups from the browser LCR demo work. Captured 2026-05-28.
   "forecast field, CONUS only".
 - **Control panel rewrite.** Out of scope for the HRRR swap; revisit once
   the data layer is settled. Header still says "GEFS LCR".
-- **Temperature colormap → diverging cool→warm.** Today every band uses
-  ColorBrewer `blues` (sequential). Temperature needs Kepler-style
-  cool-to-warm: deep blue cold, white neutral, deep orange hot. Precip stays
-  sequential blues — that's fine.
-- **Highway color ramp.** Stephen can't see red. Rework the LCR ramp so:
-  - Unaffected (LCR = 0) → lower opacity than today's silver baseline so
-    they recede further.
-  - Most affected (LCR ≈ 12) → **deep orange**, not red.
-  - Mid-range → tighter contrast so the worst hexes pop, not a smooth pastel
-    fade.
+- ✅ **Temperature colormap → diverging cool→warm.** DONE — switched off
+  sequential `blues` to a diverging cool→warm ramp; precip stays sequential.
+- ✅ **Highway color ramp.** DONE (2026-05-29). Unaffected (LCR=0) silver at
+  alpha 38 so it recedes into the dark basemap; affected roads ramp by hue
+  only, light orange `(255,175,60)` → burnt orange `(170,65,5)` at full
+  opacity. No red. Path width 2→1px to reinforce recession.
+  `web/src/lcr/compute.ts:lcrColor`, `web/src/overlay/freeways.ts`.
 
 ## Data / ETL
 
@@ -62,16 +103,8 @@ Tracked follow-ups from the browser LCR demo work. Captured 2026-05-28.
 
 ## Verification
 
-- **Vet that LCR actually fires.** Stephen's intuition: in the mid-Jan 2026
-  window we're staring at, there were sub-freezing temps over much of the
-  country with standing water — LCR should be lighting up freeways visibly,
-  but it doesn't feel like it. To verify:
-  1. Pick a known winter date.
-  2. Server-side: sample N hex pixels through `scripts/verify_lcr.py`.
-  3. In-browser: log JS LCR at the same hexes.
-  4. Cross-check. If JS != Python → ladder ports drifted. If both = 0 →
-     the activation gate is too strict for the source forecast data and
-     needs loosening.
+- ✅ **Vet that LCR actually fires.** DONE (2026-05-29). Confirmed visually
+  in-app — LCR lights up affected freeways as expected. No drift/gate issue.
 
 ## Backend
 

@@ -26,8 +26,9 @@ __pycache__/
 !docs/**/*.png
 preview.png
 
-# Embedded reference clone (has its own .git)
+# Embedded reference clones (have their own .git)
 deck.gl-raster/
+firesmoke/
 
 # Generated data artifacts
 data/

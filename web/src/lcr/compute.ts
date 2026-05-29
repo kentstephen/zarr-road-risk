@@ -115,13 +115,14 @@ export function computeLcr(x: LcrInputs): LcrResult {
 
 /**
  * LCR -> RGBA hazard ramp.
- * No-hazard baseline is silver at low alpha so highlighted segments dominate.
- * Active ramp jumps straight into saturated orange (no near-silver amber
- * blending into the baseline) and deepens to burnt orange at the top.
+ * No-hazard baseline is silver at very low alpha so it recedes into the
+ * basemap and highlighted segments dominate.
+ * Affected roads ramp by hue only — light orange at low LCR, deepening to
+ * burnt orange at the top — all at full opacity.
  * Deliberately no red — Stephen has reduced red sensitivity.
  */
 export function lcrColor(lcr: number): [number, number, number, number] {
-  if (!(lcr > 0)) return [165, 170, 178, 70]; // silver baseline, low alpha
+  if (!(lcr > 0)) return [165, 170, 178, 38]; // silver baseline, recede hard
   const t = Math.max(0, Math.min(1, lcr / 12));
   const stops: [number, [number, number, number]][] = [
     [0.0, [255, 175, 60]],

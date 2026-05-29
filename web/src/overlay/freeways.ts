@@ -85,7 +85,7 @@ export function buildFreewayLayers(props: FreewayLayerProps) {
       data: segments,
       getPath: (s) => s.path,
       getColor: segColor,
-      getWidth: 2,
+      getWidth: 1,
       widthUnits: "pixels",
       widthMinPixels: 1,
       jointRounded: true,
