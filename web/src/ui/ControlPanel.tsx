@@ -118,7 +118,7 @@ export function ControlPanel(props: ControlPanelProps) {
           >
             NOAA HRRR 48-hour forecast
           </Link>{" "}
-          (
+          Zarr v3 store (
           <Link
             href="https://dynamical.org"
             target="_blank"
