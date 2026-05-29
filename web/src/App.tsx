@@ -31,6 +31,7 @@ import { DeckGlOverlay } from "./lib/deckgl-overlay.js";
 import type { LcrResult } from "./lcr/compute.js";
 import { runLcrSideChannel, type ChunkEntry } from "./lcr/side-channel.js";
 import { buildFreewayLayers, buildHexLcr } from "./overlay/freeways.js";
+import { loadFreeways, loadHexPixels } from "./overlay/load-vectors.js";
 import type { FreewaySegment, HexPixel } from "./overlay/types.js";
 import {
   affectedByState,
@@ -137,14 +138,11 @@ export default function App() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const base = import.meta.env.BASE_URL;
-      const [segs, hxs] = await Promise.all([
-        fetch(`${base}freeways.json`).then((r) => r.json()),
-        fetch(`${base}hex_pixels.json`).then((r) => r.json()),
-      ]);
+      // Read parquet via hyparquet (load-vectors.ts) instead of 17 MB JSON.
+      const [segs, hxs] = await Promise.all([loadFreeways(), loadHexPixels()]);
       if (cancelled) return;
-      setSegments(segs as FreewaySegment[]);
-      setHexes(hxs as HexPixel[]);
+      setSegments(segs);
+      setHexes(hxs);
     })();
     return () => {
       cancelled = true;
