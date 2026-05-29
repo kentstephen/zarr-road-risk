@@ -213,6 +213,9 @@ export function ControlPanel(props: ControlPanelProps) {
               )
             }
           />
+          <Text mt="1" fontSize="xs" color="gray.500">
+            Opens on the 14 Jan 2026 winter storm; pick any date above.
+          </Text>
           {initTimeCount > 0 && initTimeIdx < initTimeCount - 1 ? (
             <Link
               mt="1"
