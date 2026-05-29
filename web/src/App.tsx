@@ -35,7 +35,7 @@ import type { FreewaySegment, HexPixel } from "./overlay/types.js";
 import { ControlPanel, type LayerToggles } from "./ui/ControlPanel.js";
 
 const MAP_STYLE_URL =
-  "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json";
+  "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json";
 
 const ZARR_URL =
   "https://data.source.coop/dynamical/noaa-hrrr-forecast-48-hour/v0.1.0.zarr";

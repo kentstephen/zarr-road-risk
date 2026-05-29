@@ -94,6 +94,13 @@ export type FieldChoice = {
   reversed: boolean;
   unit: string;
   description: string;
+  /**
+   * Display-unit floor: pixels at or below this value are discarded (fully
+   * transparent), so the basemap shows through "dead" zero areas. Leave
+   * undefined for fields where the natural floor is meaningful (e.g.
+   * temperature, where 0 °C is freezing — not dead space).
+   */
+  hideAtOrBelow?: number;
 };
 
 export const FIELD_CHOICES: FieldChoice[] = [
@@ -107,6 +114,7 @@ export const FIELD_CHOICES: FieldChoice[] = [
     reversed: false,
     unit: "%",
     description: "Total cloud cover.",
+    hideAtOrBelow: 0, // hide clear-sky pixels (basemap shows through)
   },
   {
     id: "precipitation_surface",
@@ -118,6 +126,7 @@ export const FIELD_CHOICES: FieldChoice[] = [
     reversed: false,
     unit: "mm/h",
     description: "Surface precipitation rate.",
+    hideAtOrBelow: 0, // hide no-precip pixels
   },
   {
     id: "temperature_2m",
