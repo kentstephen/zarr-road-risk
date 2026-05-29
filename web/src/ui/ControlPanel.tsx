@@ -215,8 +215,8 @@ export function ControlPanel(props: ControlPanelProps) {
           <HStack gap="2" width="full">
             <IconButton
               aria-label={isPlaying ? "Pause" : "Play"}
-              size="md"
-              fontSize="xl"
+              size="lg"
+              fontSize="3xl"
               variant="ghost"
               flexShrink={0}
               onClick={props.onPlayPauseToggle}
