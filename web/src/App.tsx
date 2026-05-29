@@ -56,10 +56,7 @@ export default function App() {
   const mapRef = useRef<MapRef>(null);
   const [arrs, setArrs] = useState<HrrrArrays | null>(null);
   const [initTimeIdx, setInitTimeIdx] = useState(0);
-  // Integer lead drives the LCR overlay / road table / UI; the float playhead
-  // drives the raster so frames tween smoothly (see the RAF loop below).
   const [leadTimeIdx, setLeadTimeIdx] = useState(0);
-  const [leadPlayhead, setLeadPlayhead] = useState(0);
   const [isPlaying, setIsPlaying] = useState(true);
   const [frameDurationMs, setFrameDurationMs] = useState(INITIAL_FRAME_MS);
 
@@ -216,42 +213,27 @@ export default function App() {
     [hexLcr, roadInfo],
   );
 
-  // Advance a continuous float playhead each animation frame (one lead per
-  // `dwell` ms). The raster mixes floor(playhead) and the next lead by the
-  // fractional part; the integer lead is published only when it actually
-  // changes, so the LCR overlay / road table don't recompute at 60 fps.
-  const playheadRef = useRef(leadPlayhead);
+  const leadRef = useRef(leadTimeIdx);
   useEffect(() => {
-    playheadRef.current = leadPlayhead;
-  }, [leadPlayhead]);
+    leadRef.current = leadTimeIdx;
+  }, [leadTimeIdx]);
   useEffect(() => {
     if (!isPlaying) return;
     let raf = 0;
     let last = performance.now();
     const loop = (now: number) => {
-      const dt = now - last;
-      last = now;
-      const cur = playheadRef.current;
-      const stepH = HRRR_LEAD_TIME_STEP_HOURS[Math.floor(cur)] ?? BASE_STEP_HOURS;
+      const cur = leadRef.current;
+      const stepH = HRRR_LEAD_TIME_STEP_HOURS[cur] ?? BASE_STEP_HOURS;
       const dwell = frameDurationMs * (stepH / BASE_STEP_HOURS);
-      let next = cur + dt / dwell;
-      if (next >= HRRR_LEAD_TIME_COUNT) next -= HRRR_LEAD_TIME_COUNT;
-      playheadRef.current = next;
-      setLeadPlayhead(next);
-      const nextInt = Math.floor(next) % HRRR_LEAD_TIME_COUNT;
-      setLeadTimeIdx((prev) => (prev !== nextInt ? nextInt : prev));
+      if (now - last >= dwell) {
+        setLeadTimeIdx((i) => (i + 1) % HRRR_LEAD_TIME_COUNT);
+        last = now;
+      }
       raf = requestAnimationFrame(loop);
     };
     raf = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(raf);
   }, [isPlaying, frameDurationMs]);
-
-  // Jump both the integer lead and the playhead (manual slider / scrub).
-  const setLead = useCallback((i: number) => {
-    setLeadTimeIdx(i);
-    setLeadPlayhead(i);
-    playheadRef.current = i;
-  }, []);
 
   // HRRR shard already covers all 49 leads; no lead-window slicing needed.
   const selection = useMemo(
@@ -262,88 +244,80 @@ export default function App() {
   const renderTile = useCallback(
     (data: HrrrTileData) => {
       if (!colormapTexture) return { renderPipeline: [] };
-      const loLayer = Math.floor(leadPlayhead) % HRRR_LEAD_TIME_COUNT;
-      const hiLayer = (loLayer + 1) % HRRR_LEAD_TIME_COUNT;
-      const leadFrac = leadPlayhead - Math.floor(leadPlayhead);
       return makeRenderTile({
-        loLayer,
-        hiLayer,
-        leadFrac,
+        layerIndex: leadTimeIdx,
         field,
         colormapTexture,
         rescaleMin,
         rescaleMax,
       })(data);
     },
-    [leadPlayhead, colormapTexture, field, rescaleMin, rescaleMax],
+    [leadTimeIdx, colormapTexture, field, rescaleMin, rescaleMax],
   );
 
-  // Raster layer: re-evaluated per playhead frame (cheap — one layer object;
-  // the tile texture is cached, only the render pipeline samples a new lead).
-  const rasterLayer = useMemo(() => {
-    if (!arrs || !colormapTexture || !layers.showRaster) return null;
-    return new ZarrLayer<zarr.Readable, "float32", HrrrTileData>({
-      id: `hrrr-zarr-${initTimeIdx}-${field.id}`,
-      node: arrs[field.id] as unknown as zarr.Array<"float32", zarr.Readable>,
-      metadata: HRRR_GEOZARR_ATTRS,
-      selection,
-      getTileData,
-      renderTile,
-      // source.coop supports HTTP/2 multiplexing.
-      maxRequests: 20,
-      maxCacheSize: 10,
-      opacity: rasterOpacity,
-      updateTriggers: {
-        renderTile: [leadPlayhead, field.id, rescaleMin, rescaleMax],
-      },
-      // positron-gl-style stack: water fill is at index 9, boundary_county
-      // at index 7 — so beforeId="boundary_county" inadvertently put the
-      // raster below water. aeroway-runway (index 11) is the first layer
-      // above water_shadow, which lands the raster above water polygons
-      // (clouds visible over oceans + lakes) but below roads / labels.
-      beforeId: "aeroway-runway",
-    } as never);
+  const deckLayers = useMemo(() => {
+    const out: unknown[] = [];
+    if (arrs && colormapTexture && layers.showRaster) {
+      out.push(
+        new ZarrLayer<zarr.Readable, "float32", HrrrTileData>({
+          id: `hrrr-zarr-${initTimeIdx}-${field.id}`,
+          node: arrs[field.id] as unknown as zarr.Array<
+            "float32",
+            zarr.Readable
+          >,
+          metadata: HRRR_GEOZARR_ATTRS,
+          selection,
+          getTileData,
+          renderTile,
+          // source.coop supports HTTP/2 multiplexing.
+          maxRequests: 20,
+          maxCacheSize: 10,
+          opacity: rasterOpacity,
+          updateTriggers: {
+            renderTile: [leadTimeIdx, field.id, rescaleMin, rescaleMax],
+          },
+          // positron-gl-style stack: water fill is at index 9, boundary_county
+          // at index 7 — so beforeId="boundary_county" inadvertently put the
+          // raster below water. aeroway-runway (index 11) is the first layer
+          // above water_shadow, which lands the raster above water polygons
+          // (clouds visible over oceans + lakes) but below roads / labels.
+          beforeId: "aeroway-runway",
+        } as never),
+      );
+    }
+    if (segments.length && hexes.length) {
+      out.push(
+        ...buildFreewayLayers({
+          segments,
+          hexes,
+          hexLcr,
+          updateKey: leadTimeIdx,
+          showPaths: layers.showPaths,
+          showHexes: layers.showHexes,
+          onHexPick: (h, r) =>
+            setPickInfo(h && r ? { hex: h, result: r } : null),
+        }),
+      );
+    }
+    return out;
   }, [
     arrs,
     colormapTexture,
-    layers.showRaster,
     initTimeIdx,
     selection,
     renderTile,
-    leadPlayhead,
-    field.id,
-    rescaleMin,
-    rescaleMax,
-    rasterOpacity,
-  ]);
-
-  // Freeway/hex layers: keyed on the INTEGER lead so they stay referentially
-  // stable across sub-frame playhead updates (no per-frame rebuild of the
-  // 2650-segment PathLayer).
-  const freewayLayers = useMemo(() => {
-    if (!segments.length || !hexes.length) return [];
-    return buildFreewayLayers({
-      segments,
-      hexes,
-      hexLcr,
-      updateKey: leadTimeIdx,
-      showPaths: layers.showPaths,
-      showHexes: layers.showHexes,
-      onHexPick: (h, r) => setPickInfo(h && r ? { hex: h, result: r } : null),
-    });
-  }, [
     segments,
     hexes,
     hexLcr,
     leadTimeIdx,
+    field.id,
+    rescaleMin,
+    rescaleMax,
+    layers.showRaster,
     layers.showPaths,
     layers.showHexes,
+    rasterOpacity,
   ]);
-
-  const deckLayers = useMemo(
-    () => (rasterLayer ? [rasterLayer, ...freewayLayers] : freewayLayers),
-    [rasterLayer, freewayLayers],
-  );
 
   return (
     <div style={{ position: "relative", width: "100%", height: "100%" }}>
@@ -373,7 +347,7 @@ export default function App() {
         rescaleMax={rescaleMax}
         layers={layers}
         onInitTimeIdxChange={setInitTimeIdx}
-        onLeadTimeIdxChange={setLead}
+        onLeadTimeIdxChange={setLeadTimeIdx}
         onPlayPauseToggle={() => setIsPlaying((p) => !p)}
         onFrameDurationMsChange={setFrameDurationMs}
         onRescaleChange={(a, b) => {
