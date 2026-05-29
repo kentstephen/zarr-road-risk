@@ -10,7 +10,12 @@ import type { FieldChoice } from "./metadata.js";
 import type { HrrrTileData } from "./get-tile-data.js";
 
 export type MakeRenderTileArgs = {
-  layerIndex: number;
+  /** Lower lead layer (floor of the continuous playhead). */
+  loLayer: number;
+  /** Upper lead layer ((loLayer + 1) wrapped at the loop boundary). */
+  hiLayer: number;
+  /** Blend 0..1 between loLayer and hiLayer (fract of the playhead). */
+  leadFrac: number;
   field: FieldChoice;
   colormapTexture: Texture;
   rescaleMin?: number;
@@ -26,7 +31,8 @@ export type MakeRenderTileArgs = {
  * sees the raw value from the zarr (kg/m²/s, m/s, °C).
  */
 export function makeRenderTile(args: MakeRenderTileArgs) {
-  const { layerIndex, field, colormapTexture, rescaleMin, rescaleMax } = args;
+  const { loLayer, hiLayer, leadFrac, field, colormapTexture, rescaleMin, rescaleMax } =
+    args;
   return function renderTile(data: HrrrTileData): RenderTileResult {
     // Discard pixels at/below the field's "dead value" (in raw zarr units).
     // hideAtOrBelow is in DISPLAY units; divide by displayScale to convert.
@@ -41,7 +47,7 @@ export function makeRenderTile(args: MakeRenderTileArgs) {
       renderPipeline: [
         {
           module: SampleTexture2DArray,
-          props: { dataTex: data.texture, layerIndex },
+          props: { dataTex: data.texture, loLayer, hiLayer, leadFrac },
         },
         ...(useFilter
           ? [
