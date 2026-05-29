@@ -59,7 +59,7 @@ export function RoadTablePanel({
         m="0"
       >
         <Heading as="h2" size="md">
-          Affected roads
+          Roads at Risk
         </Heading>
         <chakra.span
           fontSize="xs"
