@@ -142,7 +142,10 @@ export function ControlPanel(props: ControlPanelProps) {
         </Text>
 
         <Text fontSize="xs" color="gray.600" lineHeight="1.4">
-          Cloud-cover backdrop (atmospheric context).
+          <Text as="span" fontWeight="medium">
+            Cloud-cover backdrop
+          </Text>{" "}
+          (atmospheric context).
         </Text>
 
         <Field label="Forecast init (UTC)">
