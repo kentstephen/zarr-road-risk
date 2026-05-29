@@ -92,8 +92,8 @@ export function ControlPanel(props: ControlPanelProps) {
       width="380px"
       sourceHref="https://github.com/kentstephen/zarr-road-risk"
     >
-      <Stack gap="2">
-        <Text fontSize="xs" color="gray.600" lineHeight="1.4">
+      <Stack gap="3.5">
+        <Text fontSize="xs" color="gray.600" lineHeight="1.6">
           Freeways colored by an{" "}
           <Text as="span" fontWeight="semibold">
             LCR-Inspired Road Risk
@@ -141,7 +141,7 @@ export function ControlPanel(props: ControlPanelProps) {
           ).
         </Text>
 
-        <Text fontSize="xs" color="gray.600" lineHeight="1.4">
+        <Text fontSize="xs" color="gray.600" lineHeight="1.6">
           <Text as="span" fontWeight="medium">
             Cloud-cover backdrop
           </Text>{" "}
