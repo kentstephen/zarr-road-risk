@@ -96,7 +96,11 @@ export function ControlPanel(props: ControlPanelProps) {
     >
       <Stack gap="2">
         <Text fontSize="xs" color="gray.600" lineHeight="1.4">
-          Freeways colored by{" "}
+          Freeways colored by an{" "}
+          <Text as="span" fontWeight="semibold">
+            LCR-Inspired Road Risk
+          </Text>{" "}
+          score (0–12) — a forecast-derived estimate of{" "}
           <Link
             href="https://icyroadsafety.com/lcr/"
             target="_blank"
@@ -105,8 +109,8 @@ export function ControlPanel(props: ControlPanelProps) {
             textDecoration="underline"
           >
             Loss-of-Control Risk
-          </Link>{" "}
-          (LCR, 0–12) computed live from the{" "}
+          </Link>
+          , computed live from the{" "}
           <Link
             href="https://source.coop/dynamical/noaa-hrrr-forecast-48-hour"
             target="_blank"
@@ -116,7 +120,27 @@ export function ControlPanel(props: ControlPanelProps) {
           >
             NOAA HRRR 48-hour forecast
           </Link>{" "}
-          (Dynamical, on source.coop).
+          (
+          <Link
+            href="https://dynamical.org"
+            target="_blank"
+            rel="noopener noreferrer"
+            color="orange.600"
+            textDecoration="underline"
+          >
+            Dynamical
+          </Link>
+          , on{" "}
+          <Link
+            href="https://source.coop"
+            target="_blank"
+            rel="noopener noreferrer"
+            color="orange.600"
+            textDecoration="underline"
+          >
+            source.coop
+          </Link>
+          ). The cloud-cover layer is shown for atmospheric context.
         </Text>
         <Text fontSize="xs" color="gray.500" lineHeight="1.4">
           Get the data:{" "}
@@ -129,23 +153,39 @@ export function ControlPanel(props: ControlPanelProps) {
           >
             HRRR Zarr store ↗
           </Link>{" "}
-          (Zarr v3 on source.coop).
+          (Zarr v3 on{" "}
+          <Link
+            href="https://source.coop"
+            target="_blank"
+            rel="noopener noreferrer"
+            color="orange.600"
+            textDecoration="underline"
+          >
+            source.coop
+          </Link>
+          ).
         </Text>
 
         <Field label="Field">
-          <NativeSelect.Root size="sm">
-            <NativeSelect.Field
-              value={field.id}
-              onChange={(e) => props.onFieldChange(e.target.value)}
-            >
-              {FIELD_CHOICES.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.label}
-                </option>
-              ))}
-            </NativeSelect.Field>
-            <NativeSelect.Indicator />
-          </NativeSelect.Root>
+          {FIELD_CHOICES.length > 1 ? (
+            <NativeSelect.Root size="sm">
+              <NativeSelect.Field
+                value={field.id}
+                onChange={(e) => props.onFieldChange(e.target.value)}
+              >
+                {FIELD_CHOICES.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.label}
+                  </option>
+                ))}
+              </NativeSelect.Field>
+              <NativeSelect.Indicator />
+            </NativeSelect.Root>
+          ) : (
+            <Text fontSize="sm" color="gray.700">
+              {field.label}
+            </Text>
+          )}
         </Field>
 
         <Text fontSize="xs" color="gray.500" lineHeight="1.4">

@@ -103,6 +103,10 @@ export type FieldChoice = {
   hideAtOrBelow?: number;
 };
 
+// Only the cloud-cover field is offered as the displayed raster — it's shown
+// as neutral atmospheric context. (Precipitation + temperature were removed to
+// avoid implying the LCR-Inspired Road Risk score is computed from just these
+// display fields; the score uses all 8 LCR_BANDS, incl. precip phase + wind.)
 export const FIELD_CHOICES: FieldChoice[] = [
   {
     id: "total_cloud_cover_atmosphere",
@@ -115,29 +119,6 @@ export const FIELD_CHOICES: FieldChoice[] = [
     unit: "%",
     description: "Total cloud cover.",
     hideAtOrBelow: 0, // hide clear-sky pixels (basemap shows through)
-  },
-  {
-    id: "precipitation_surface",
-    label: "Precipitation rate",
-    displayScale: 3600, // kg/m²/s -> mm/h
-    rescaleMin: 0,
-    rescaleMax: 2,
-    colormapIndex: COLORMAP_INDEX.blues,
-    reversed: false,
-    unit: "mm/h",
-    description: "Surface precipitation rate.",
-    hideAtOrBelow: 0, // hide no-precip pixels
-  },
-  {
-    id: "temperature_2m",
-    label: "Temperature 2 m",
-    displayScale: 1,
-    rescaleMin: -40,
-    rescaleMax: 40,
-    colormapIndex: COLORMAP_INDEX.puor,
-    reversed: true,
-    unit: "°C",
-    description: "2 m air temperature.",
   },
 ];
 
