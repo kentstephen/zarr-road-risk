@@ -4,7 +4,6 @@ import {
   IconButton,
   Input,
   Link,
-  NativeSelect,
   Slider,
   Stack,
   Text,
@@ -23,7 +22,6 @@ import {
 } from "../components/index.js";
 import {
   dateFromInitTimeIdx,
-  FIELD_CHOICES,
   HRRR_LEAD_TIME_COUNT as GEFS_LEAD_TIME_COUNT,
   HRRR_LEAD_TIME_HOURS as GEFS_LEAD_TIME_HOURS,
   INIT_TIME_ORIGIN,
@@ -140,33 +138,11 @@ export function ControlPanel(props: ControlPanelProps) {
           >
             source.coop
           </Link>
-          ). The cloud-cover layer is shown for atmospheric context.
+          ).
         </Text>
 
-        <Field label="Field">
-          {FIELD_CHOICES.length > 1 ? (
-            <NativeSelect.Root size="sm">
-              <NativeSelect.Field
-                value={field.id}
-                onChange={(e) => props.onFieldChange(e.target.value)}
-              >
-                {FIELD_CHOICES.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.label}
-                  </option>
-                ))}
-              </NativeSelect.Field>
-              <NativeSelect.Indicator />
-            </NativeSelect.Root>
-          ) : (
-            <Text fontSize="sm" color="gray.700">
-              {field.label}
-            </Text>
-          )}
-        </Field>
-
-        <Text fontSize="xs" color="gray.500" lineHeight="1.4">
-          {field.description}
+        <Text fontSize="xs" color="gray.600" lineHeight="1.4">
+          Cloud-cover backdrop (atmospheric context).
         </Text>
 
         <Field label="Forecast init (UTC)">
@@ -191,7 +167,8 @@ export function ControlPanel(props: ControlPanelProps) {
             }
           />
           <Text mt="1" fontSize="xs" color="gray.500">
-            Opens on the 14 Jan 2026 winter storm; pick any date above.
+            Opens on the 14 Jan 2026 winter storm. Pick any date back to 13 Jul
+            2018.
           </Text>
           {initTimeCount > 0 && initTimeIdx < initTimeCount - 1 ? (
             <Link
