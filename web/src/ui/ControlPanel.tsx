@@ -142,29 +142,6 @@ export function ControlPanel(props: ControlPanelProps) {
           </Link>
           ). The cloud-cover layer is shown for atmospheric context.
         </Text>
-        <Text fontSize="xs" color="gray.500" lineHeight="1.4">
-          Get the data:{" "}
-          <Link
-            href="https://source.coop/dynamical/noaa-hrrr-forecast-48-hour"
-            target="_blank"
-            rel="noopener noreferrer"
-            color="orange.600"
-            textDecoration="underline"
-          >
-            HRRR Zarr store ↗
-          </Link>{" "}
-          (Zarr v3 on{" "}
-          <Link
-            href="https://source.coop"
-            target="_blank"
-            rel="noopener noreferrer"
-            color="orange.600"
-            textDecoration="underline"
-          >
-            source.coop
-          </Link>
-          ).
-        </Text>
 
         <Field label="Field">
           {FIELD_CHOICES.length > 1 ? (
