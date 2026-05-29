@@ -14,7 +14,7 @@ export type RoadInfo = { roadName: string | null; state: string | null };
 
 /** h3_r5 -> { roadName, state }. Cells with no Overture match are absent. */
 export async function loadRoadTable(
-  url = "road_table.parquet",
+  url = `${import.meta.env.BASE_URL}road_table.parquet`,
 ): Promise<Map<string, RoadInfo>> {
   const file = await asyncBufferFromUrl({ url });
   const rows = await parquetReadObjects({

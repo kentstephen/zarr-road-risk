@@ -137,9 +137,10 @@ export default function App() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      const base = import.meta.env.BASE_URL;
       const [segs, hxs] = await Promise.all([
-        fetch("freeways.json").then((r) => r.json()),
-        fetch("hex_pixels.json").then((r) => r.json()),
+        fetch(`${base}freeways.json`).then((r) => r.json()),
+        fetch(`${base}hex_pixels.json`).then((r) => r.json()),
       ]);
       if (cancelled) return;
       setSegments(segs as FreewaySegment[]);
@@ -326,6 +327,9 @@ export default function App() {
         ref={mapRef}
         initialViewState={{ longitude: -96, latitude: 39, zoom: 3.6 }}
         mapStyle={MAP_STYLE_URL}
+        // CARTO/OSM attribution is rendered in the left ControlPanel footer
+        // instead, so the map's corner control can't clash with the panels.
+        attributionControl={false}
       >
         <DeckGlOverlay
           layers={deckLayers as never}

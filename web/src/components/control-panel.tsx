@@ -7,6 +7,9 @@ import { ExternalLink } from "./external-link.js";
 const REPO_URL = "https://github.com/developmentseed/deck.gl-raster";
 /** Development Seed company website. */
 const DEVSEED_URL = "https://developmentseed.org";
+/** Basemap attribution links (CARTO basemap, OpenStreetMap data). */
+const CARTO_URL = "https://carto.com/attributions";
+const OSM_URL = "https://www.openstreetmap.org/copyright";
 /** GitHub URL for a path within the repo on the `main` branch. */
 const sourceUrl = (path: string) => `${REPO_URL}/tree/main/${path}`;
 const DEFAULT_DOCS_URL = "https://developmentseed.org/deck.gl-raster/";
@@ -144,6 +147,11 @@ export function ControlPanel({
                 <ExternalLink href={DEVSEED_URL}>Development Seed</ExternalLink>
               </chakra.span>
             ) : null}
+            <chakra.span color="gray.500">
+              © <ExternalLink href={CARTO_URL}>CARTO</ExternalLink>, ©{" "}
+              <ExternalLink href={OSM_URL}>OpenStreetMap</ExternalLink>{" "}
+              contributors
+            </chakra.span>
           </Flex>
         </>
       ) : null}

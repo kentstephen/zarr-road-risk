@@ -1,7 +1,7 @@
 [project]
 name = "zarr-road-risk"
 version = "0.1.0"
-description = "Add your description here"
+description = "Live HRRR road-weather hazard viewer: US freeways scored by Loss-of-Control Risk (LCR), with the ETL that builds the browser app's static data."
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -17,6 +17,7 @@ dependencies = [
     "marimo>=0.23.8",
     "matplotlib>=3.10.8",
     "numpy>=2.4.4",
+    "obstore>=0.9.5",
     "overturemaps",
     "palettable>=3.3.3",
     "pandas>=3.0.2",

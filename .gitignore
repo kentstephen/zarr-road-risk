@@ -21,6 +21,10 @@ __pycache__/
 # Claude workspace-local memory (per global rules)
 .claude/memory/
 
+# Working notes / running todo (kept local, not part of the public repo)
+NOTES.md
+docs/TODO.md
+
 # Build / output artifacts
 *.png
 !docs/**/*.png

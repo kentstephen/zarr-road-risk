@@ -94,8 +94,8 @@ export function ControlPanel(props: ControlPanelProps) {
       width="380px"
       sourceHref="https://github.com/kentstephen/zarr-road-risk"
     >
-      <Stack gap="3">
-        <Text fontSize="xs" color="gray.600">
+      <Stack gap="2">
+        <Text fontSize="xs" color="gray.600" lineHeight="1.4">
           Freeways colored by{" "}
           <Link
             href="https://icyroadsafety.com/lcr/"
@@ -118,7 +118,7 @@ export function ControlPanel(props: ControlPanelProps) {
           </Link>{" "}
           (Dynamical, on source.coop).
         </Text>
-        <Text fontSize="xs" color="gray.500">
+        <Text fontSize="xs" color="gray.500" lineHeight="1.4">
           Get the data:{" "}
           <Link
             href="https://source.coop/dynamical/noaa-hrrr-forecast-48-hour"
@@ -148,7 +148,7 @@ export function ControlPanel(props: ControlPanelProps) {
           </NativeSelect.Root>
         </Field>
 
-        <Text fontSize="xs" color="gray.500">
+        <Text fontSize="xs" color="gray.500" lineHeight="1.4">
           {field.description}
         </Text>
 
