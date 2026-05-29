@@ -7,7 +7,7 @@
  *              WHERE road_name IS NOT NULL GROUP BY state ORDER BY 2 DESC"
  */
 
-import { asyncBufferFromUrl, parquetReadObjects } from "hyparquet";
+import { parquetReadObjects } from "hyparquet";
 import type { LcrResult } from "../lcr/compute.js";
 
 export type RoadInfo = { roadName: string | null; state: string | null };
@@ -16,7 +16,14 @@ export type RoadInfo = { roadName: string | null; state: string | null };
 export async function loadRoadTable(
   url = `${import.meta.env.BASE_URL}road_table.parquet`,
 ): Promise<Map<string, RoadInfo>> {
-  const file = await asyncBufferFromUrl({ url });
+  // Fetch the whole file (~295 KB) rather than HTTP-range it. GitHub Pages
+  // gzips the response, and Range + Content-Encoding: gzip is incompatible
+  // (ranges index the compressed stream, the browser hands back decompressed
+  // bytes) — which makes range-based readers see a bogus footer. A full GET
+  // decompresses cleanly; an ArrayBuffer satisfies hyparquet's AsyncBuffer.
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`road table fetch failed ${res.status}`);
+  const file = await res.arrayBuffer();
   const rows = await parquetReadObjects({
     file,
     columns: ["h3_r5", "road_name", "state"],
