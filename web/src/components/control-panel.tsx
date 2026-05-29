@@ -1,8 +1,4 @@
-import { Box, chakra, Flex, Heading, Link } from "@chakra-ui/react";
-import {
-  CollecticonBrandDevelopmentSeed,
-  CollecticonBrandGithub,
-} from "@devseed-ui/collecticons-chakra";
+import { Box, chakra, Flex, Heading } from "@chakra-ui/react";
 import type { ReactNode } from "react";
 import { useState } from "react";
 import { ExternalLink } from "./external-link.js";
@@ -51,6 +47,12 @@ export interface ControlPanelProps {
    * the footer shows a "View source ↗" link to that path on the `main` branch.
    */
   sourcePath?: string;
+  /**
+   * Absolute URL for the footer "View source ↗" link (e.g. this project's
+   * GitHub repo). Takes precedence over `sourcePath`. When set, the footer
+   * also shows a "Built with deck.gl-raster by Development Seed" credit.
+   */
+  sourceHref?: string;
   /** Panel body content. */
   children: ReactNode;
 }
@@ -70,6 +72,7 @@ export function ControlPanel({
   width = "350px",
   docsHref = DEFAULT_DOCS_URL,
   sourcePath,
+  sourceHref,
   children,
 }: ControlPanelProps) {
   const [open, setOpen] = useState(defaultOpen);
@@ -116,51 +119,34 @@ export function ControlPanel({
         </chakra.span>
       </chakra.button>
       {open ? (
-        <Box mt="3" fontSize="sm">
-          {children}
-        </Box>
-      ) : null}
-      <Flex
-        mt="3"
-        pt="2"
-        borderTopWidth="1px"
-        borderColor="gray.200"
-        alignItems="center"
-        justifyContent="space-between"
-        gap="3"
-        fontSize="xs"
-      >
-        <Flex gap="3" wrap="wrap" alignItems="center">
-          <ExternalLink href={docsHref}>Documentation ↗</ExternalLink>
-          {sourcePath ? (
-            <ExternalLink href={sourceUrl(sourcePath)}>
+        <>
+          <Box mt="3" fontSize="sm">
+            {children}
+          </Box>
+          <Flex
+            mt="3"
+            pt="2"
+            borderTopWidth="1px"
+            borderColor="gray.200"
+            direction="column"
+            gap="1"
+            fontSize="xs"
+          >
+            <ExternalLink
+              href={sourceHref ?? (sourcePath ? sourceUrl(sourcePath) : docsHref)}
+            >
               View source ↗
             </ExternalLink>
-          ) : null}
-        </Flex>
-        <Flex gap="2" alignItems="center" color="gray.600">
-          <Link
-            href={REPO_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label="deck.gl-raster on GitHub"
-            color="inherit"
-            _hover={{ color: "gray.900" }}
-          >
-            <CollecticonBrandGithub />
-          </Link>
-          <Link
-            href={DEVSEED_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label="Development Seed"
-            color="inherit"
-            _hover={{ color: "gray.900" }}
-          >
-            <CollecticonBrandDevelopmentSeed />
-          </Link>
-        </Flex>
-      </Flex>
+            {sourceHref ? (
+              <chakra.span color="gray.500">
+                Built with{" "}
+                <ExternalLink href={REPO_URL}>deck.gl-raster</ExternalLink> by{" "}
+                <ExternalLink href={DEVSEED_URL}>Development Seed</ExternalLink>
+              </chakra.span>
+            ) : null}
+          </Flex>
+        </>
+      ) : null}
     </Box>
   );
 }

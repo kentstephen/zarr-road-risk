@@ -35,7 +35,6 @@ from pathlib import Path
 import duckdb
 import geopandas as gpd
 import h3
-import numpy as np
 import pandas as pd
 import pyarrow.parquet as pq
 from shapely import wkb
@@ -50,8 +49,26 @@ ADMIN1 = DATA / "overture_admin1.parquet"
 OUT = DATA / "road_table.parquet"
 
 R5 = 5
-# r5 edge ~8.5 km; sample lines every ~1 km in degrees (~0.009 deg lat).
-SAMPLE_STEP_DEG = 0.009
+# Densify step (m) before mapping vertices to r5 cells. Matches the HRRR pixel
+# pitch / the hex notebook; r5 edge ~8.5 km so 3 km never skips a cell.
+DENSIFY_M = 3000
+
+# Overture admin-1 region names -> USPS two-letter codes (US-only dataset).
+STATE_ABBR = {
+    "Alabama": "AL", "Alaska": "AK", "Arizona": "AZ", "Arkansas": "AR",
+    "California": "CA", "Colorado": "CO", "Connecticut": "CT", "Delaware": "DE",
+    "District of Columbia": "DC", "Florida": "FL", "Georgia": "GA", "Hawaii": "HI",
+    "Idaho": "ID", "Illinois": "IL", "Indiana": "IN", "Iowa": "IA",
+    "Kansas": "KS", "Kentucky": "KY", "Louisiana": "LA", "Maine": "ME",
+    "Maryland": "MD", "Massachusetts": "MA", "Michigan": "MI", "Minnesota": "MN",
+    "Mississippi": "MS", "Missouri": "MO", "Montana": "MT", "Nebraska": "NE",
+    "Nevada": "NV", "New Hampshire": "NH", "New Jersey": "NJ", "New Mexico": "NM",
+    "New York": "NY", "North Carolina": "NC", "North Dakota": "ND", "Ohio": "OH",
+    "Oklahoma": "OK", "Oregon": "OR", "Pennsylvania": "PA", "Rhode Island": "RI",
+    "South Carolina": "SC", "South Dakota": "SD", "Tennessee": "TN", "Texas": "TX",
+    "Utah": "UT", "Vermont": "VT", "Virginia": "VA", "Washington": "WA",
+    "West Virginia": "WV", "Wisconsin": "WI", "Wyoming": "WY",
+}
 
 
 def _cache_ok(path: Path) -> bool:
@@ -146,30 +163,33 @@ def _iter_lines(geom):
         yield from geom.geoms
 
 
-def cells_for_line(geom) -> set[str]:
-    """r5 cells touched by a (Multi)LineString, via ~1 km point sampling."""
-    cells: set[str] = set()
-    for line in _iter_lines(geom):
-        n = max(2, int(line.length / SAMPLE_STEP_DEG) + 1)
-        for d in np.linspace(0.0, line.length, n):
-            pt = line.interpolate(d)
-            cells.add(h3.latlng_to_cell(pt.y, pt.x, R5))
-    return cells
-
-
 def build_cell_road() -> pd.DataFrame:
-    """cell -> (road_name, road_id) keeping the longest road that touches each cell."""
+    """cell -> (road_name, road_id) keeping the longest road that touches each cell.
+
+    Densify is vectorized (project -> segmentize -> back to lon/lat) the same way
+    build_freeway_parquets.ipynb does it — much faster than per-point interpolate.
+    """
     mw = pq.read_table(MOTORWAYS).to_pandas()
     mw = mw[mw.road_name.notna()].reset_index(drop=True)
     print(f"[join] {len(mw)} named motorways")
+
+    geoms = gpd.GeoSeries.from_wkb(mw.geometry_wkb.values, crs="EPSG:4326")
+    proj = geoms.to_crs(5070)                       # equal-area, metres
+    lengths = proj.length.to_numpy()                # tiebreak: longest road wins
+    dense = proj.segmentize(DENSIFY_M).to_crs("EPSG:4326")
+
+    names = mw.road_name.to_numpy()
+    ids = mw.road_id.to_numpy()
     rows: list[tuple[str, str, str, float]] = []
-    for r in mw.itertuples(index=False):
-        geom = wkb.loads(bytes(r.geometry_wkb))
-        length = geom.length
-        for cell in cells_for_line(geom):
-            rows.append((cell, r.road_name, r.road_id, length))
+    for g, name, rid, length in zip(dense.values, names, ids, lengths):
+        seen: set[str] = set()
+        for line in _iter_lines(g):
+            for lon, lat in line.coords:
+                c = h3.latlng_to_cell(lat, lon, R5)
+                if c not in seen:
+                    seen.add(c)
+                    rows.append((c, name, rid, length))
     cr = pd.DataFrame(rows, columns=["h3_r5", "road_name", "road_id", "length"])
-    # longest road wins each cell
     cr = cr.sort_values("length", ascending=False).drop_duplicates("h3_r5")
     print(f"[join] {len(cr)} cells covered by a named motorway")
     return cr[["h3_r5", "road_name", "road_id"]]
@@ -187,6 +207,8 @@ def attach_state(hexes: pd.DataFrame) -> pd.DataFrame:
     )
     joined = gpd.sjoin(pts, adm_gdf, how="left", predicate="within")
     joined = joined.drop_duplicates("h3_r5")[["h3_r5", "state", "country"]]
+    # Full region name -> USPS two-letter code; unmapped (non-US) -> NaN.
+    joined["state"] = joined["state"].map(STATE_ABBR)
     return hexes.merge(joined, on="h3_r5", how="left")
 
 
@@ -215,6 +237,12 @@ def main() -> None:
 
     hexes.to_parquet(OUT, index=False)
     print(f"[out] wrote {OUT} ({OUT.stat().st_size/1e3:.1f} KB)")
+
+    # Also drop a copy where the browser app fetches it (served by Vite).
+    web_out = Path("web/public/road_table.parquet")
+    if web_out.parent.exists():
+        hexes.to_parquet(web_out, index=False)
+        print(f"[out] wrote {web_out} ({web_out.stat().st_size/1e3:.1f} KB)")
 
 
 if __name__ == "__main__":

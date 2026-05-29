@@ -3,6 +3,7 @@ import {
   HStack,
   IconButton,
   Input,
+  Link,
   NativeSelect,
   Slider,
   Stack,
@@ -18,7 +19,6 @@ import {
   ColormapPreview,
   Field,
   HelpTooltip,
-  RangeSlider,
   ControlPanel as SharedControlPanel,
 } from "../components/index.js";
 import {
@@ -78,8 +78,6 @@ export function ControlPanel(props: ControlPanelProps) {
     initTimeCount,
     isPlaying,
     frameDurationMs,
-    rescaleMin,
-    rescaleMax,
     layers,
     rasterOpacity,
     pick,
@@ -89,17 +87,51 @@ export function ControlPanel(props: ControlPanelProps) {
   validUTC.setUTCHours(validUTC.getUTCHours() + hours);
   const validStr = `${isoDateString(validUTC)} ${String(validUTC.getUTCHours()).padStart(2, "0")}:00Z`;
 
-  // Use a single hue/scale slider that's wide enough to span any band.
-  // Bands have different natural ranges, so we expose the band's own range
-  // with a 25% buffer below/above so user can clip.
-  const span = field.rescaleMax - field.rescaleMin;
-  const sliderMin = field.rescaleMin - span * 0.25;
-  const sliderMax = field.rescaleMax + span * 0.25;
-  const stepGuess = Math.max(0.01, Math.round((span / 100) * 100) / 100);
-
   return (
-    <SharedControlPanel title="GEFS LCR · US Freeways" position="top-left" width="380px">
+    <SharedControlPanel
+      title="HRRR LCR · US Freeways"
+      position="top-left"
+      width="380px"
+      sourceHref="https://github.com/kentstephen/zarr-road-risk"
+    >
       <Stack gap="3">
+        <Text fontSize="xs" color="gray.600">
+          Freeways colored by{" "}
+          <Link
+            href="https://icyroadsafety.com/lcr/"
+            target="_blank"
+            rel="noopener noreferrer"
+            color="orange.600"
+            textDecoration="underline"
+          >
+            Loss-of-Control Risk
+          </Link>{" "}
+          (LCR, 0–12) computed live from the{" "}
+          <Link
+            href="https://source.coop/dynamical/noaa-hrrr-forecast-48-hour"
+            target="_blank"
+            rel="noopener noreferrer"
+            color="orange.600"
+            textDecoration="underline"
+          >
+            NOAA HRRR 48-hour forecast
+          </Link>{" "}
+          (Dynamical, on source.coop).
+        </Text>
+        <Text fontSize="xs" color="gray.500">
+          Get the data:{" "}
+          <Link
+            href="https://source.coop/dynamical/noaa-hrrr-forecast-48-hour"
+            target="_blank"
+            rel="noopener noreferrer"
+            color="orange.600"
+            textDecoration="underline"
+          >
+            HRRR Zarr store ↗
+          </Link>{" "}
+          (Zarr v3 on source.coop).
+        </Text>
+
         <Field label="Field">
           <NativeSelect.Root size="sm">
             <NativeSelect.Field
@@ -141,6 +173,26 @@ export function ControlPanel(props: ControlPanelProps) {
               )
             }
           />
+          {initTimeCount > 0 && initTimeIdx < initTimeCount - 1 ? (
+            <Link
+              mt="1"
+              fontSize="xs"
+              color="orange.600"
+              cursor="pointer"
+              textDecoration="none"
+              _hover={{ textDecoration: "none" }}
+              onClick={() => props.onInitTimeIdxChange(initTimeCount - 1)}
+            >
+              →&nbsp;
+              <Text as="span" textDecoration="underline">
+                Jump to current forecast
+              </Text>
+            </Link>
+          ) : (
+            <Text mt="1" fontSize="xs" color="gray.400">
+              Showing the latest forecast
+            </Text>
+          )}
         </Field>
 
         <Field
@@ -255,29 +307,6 @@ export function ControlPanel(props: ControlPanelProps) {
               </Slider.Thumb>
             </Slider.Control>
           </Slider.Root>
-        </Field>
-
-        <Field
-          label={
-            <Text as="span">
-              Rescale: {rescaleMin.toFixed(1)} – {rescaleMax.toFixed(1)} {field.unit}
-            </Text>
-          }
-        >
-          <div
-            onDoubleClick={() =>
-              props.onRescaleChange(field.rescaleMin, field.rescaleMax)
-            }
-          >
-            <RangeSlider
-              min={sliderMin}
-              max={sliderMax}
-              step={stepGuess}
-              value={[rescaleMin, rescaleMax]}
-              onChange={([a, b]) => props.onRescaleChange(a, b)}
-              thumbLabels={["Rescale min", "Rescale max"]}
-            />
-          </div>
         </Field>
 
         <Stack gap="1">

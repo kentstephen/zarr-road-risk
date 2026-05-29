@@ -32,7 +32,13 @@ import type { LcrResult } from "./lcr/compute.js";
 import { runLcrSideChannel, type ChunkEntry } from "./lcr/side-channel.js";
 import { buildFreewayLayers, buildHexLcr } from "./overlay/freeways.js";
 import type { FreewaySegment, HexPixel } from "./overlay/types.js";
+import {
+  affectedByState,
+  loadRoadTable,
+  type RoadInfo,
+} from "./roads/road-table.js";
 import { ControlPanel, type LayerToggles } from "./ui/ControlPanel.js";
+import { RoadTablePanel } from "./ui/RoadTablePanel.js";
 
 const MAP_STYLE_URL =
   "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json";
@@ -40,7 +46,7 @@ const MAP_STYLE_URL =
 const ZARR_URL =
   "https://data.source.coop/dynamical/noaa-hrrr-forecast-48-hour/v0.1.0.zarr";
 const BASE_STEP_HOURS = 1;
-const INITIAL_FRAME_MS = 140;
+const INITIAL_FRAME_MS = 230;
 const DEFAULT_INIT_DATE = new Date("2026-01-14T00:00:00Z");
 
 type PickInfo = { hex: HexPixel; result: LcrResult } | null;
@@ -68,7 +74,7 @@ export default function App() {
     showPaths: true,
     showHexes: false,
   });
-  const [rasterOpacity, setRasterOpacity] = useState(0.5);
+  const [rasterOpacity, setRasterOpacity] = useState(0.35);
 
   const [device, setDevice] = useState<Device | null>(null);
   const [colormapImage, setColormapImage] = useState<ImageData | null>(null);
@@ -77,6 +83,7 @@ export default function App() {
   const [segments, setSegments] = useState<FreewaySegment[]>([]);
   const [hexes, setHexes] = useState<HexPixel[]>([]);
   const [pickInfo, setPickInfo] = useState<PickInfo>(null);
+  const [roadInfo, setRoadInfo] = useState<Map<string, RoadInfo> | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -143,6 +150,19 @@ export default function App() {
     };
   }, []);
 
+  // Road-name + state lookup, read from road_table.parquet via hyparquet.
+  useEffect(() => {
+    let cancelled = false;
+    loadRoadTable()
+      .then((m) => {
+        if (!cancelled) setRoadInfo(m);
+      })
+      .catch((err) => console.error("road table load failed", err));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // ---- LCR side channel: fetch the 8 bands ONLY for shards covering hexes.
   // Runs whenever (init, hexes, arrs) change. Each shard lands in
   // lcrChunksRef as soon as its 8 bands are back; we bump `chunksVersion`
@@ -186,6 +206,13 @@ export default function App() {
     if (hexes.length === 0) return new Map<string, LcrResult>();
     return buildHexLcr(hexes, lcrChunksRef.current, leadTimeIdx);
   }, [hexes, leadTimeIdx, chunksVersion]);
+
+  // Live affected-roads-by-state table (right panel). Recomputes per frame
+  // from hexLcr; empty until road_table.parquet has loaded.
+  const roadGroups = useMemo(
+    () => (roadInfo ? affectedByState(hexLcr, roadInfo) : []),
+    [hexLcr, roadInfo],
+  );
 
   const leadRef = useRef(leadTimeIdx);
   useEffect(() => {
@@ -331,6 +358,7 @@ export default function App() {
         pick={pickInfo}
         onClosePick={() => setPickInfo(null)}
       />
+      <RoadTablePanel groups={roadGroups} ready={roadInfo !== null} />
     </div>
   );
 }

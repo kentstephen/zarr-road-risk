@@ -35,6 +35,41 @@ Done this session:
   Overture motorways (the geometry feeding the join).
 - Re-ran `build_freeway_parquets.ipynb` → fresh US hexes (5912) / segs (2650).
 
+### ✅ Right-side affected-roads panel — DONE (2026-05-29)
+
+Built & shipping. `web/src/ui/RoadTablePanel.tsx` + `web/src/roads/road-table.ts`
+(hyparquet loader + `affectedByState`), wired in `App.tsx`. Reads
+`web/public/road_table.parquet` via hyparquet (snappy, native — no compressors,
+no duckdb-wasm). Live per-frame from `hexLcr`: rows appear/collapse with the
+map highlights, grouped by 2-letter state (alphabetical), one row per road
+(worst LCR + colored dot), `(unnamed)` collapse row, `—` for unknown state.
+Collapsible header. Coverage: 5898/5912 hexes with state (99.8%), 3435 with
+road_name (58%). Fast vectorized join (2 s) in build_road_table.py.
+
+Left-panel UI also landed this session: title GEFS→HRRR, LCR definition + link
+to icyroadsafety.com/lcr/, "Get the data → HRRR Zarr store" (cloud-native; we
+do NOT offer a parquet download — Stephen: "that isn't cloud native"), "Jump
+to current forecast" link, footer "View source" → this repo + "Built with
+deck.gl-raster by Development Seed" (devseed/github icon buttons removed),
+left panel collapses to just the title. Removed the rescale control (Stephen:
+"useless"). Defaults: dwell 230 ms, raster opacity 0.35.
+
+Plan as originally captured (below) for reference:
+
+### Right-side affected-roads panel (building 2026-05-29)
+
+Plan (Stephen): a table pinned to the **right side** of the app, fed by
+`road_table.parquet` read in-browser via **hyparquet**.
+- Rows = roads currently LCR-highlighted on the map. Group by **state**
+  (USPS two-letter code, e.g. `NH` — ETL maps Overture region names → abbr),
+  **alphabetical**.
+- Each row shows the road name; **if a hex has no road_name, show just the
+  state** (the state group still lists it).
+- The table is **live**: a road appears when its hexes light up (LCR > 0 for
+  the current frame/lead) and **collapses out once the highlight is gone**.
+  Driven by the same `hexLcr` map the freeway layer uses — no new fetch.
+- State codes are two-letter (`STATE_ABBR` in build_road_table.py).
+
 Still to do on the backend:
 - Run `build_road_table.py` end-to-end (the ramp-filtered refetch + join had
   not been run as of session end — kept getting interrupted). Verify state +
