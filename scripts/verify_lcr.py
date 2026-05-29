@@ -1,10 +1,12 @@
-"""LCR (Loss-of-Control Risk) ground-truth: GEFS bands -> per-hex LCR -> PNG.
+"""LCR (Loss-of-Control Risk) ground-truth: HRRR bands -> per-hex LCR -> PNG.
 
-Reads 8 input bands from the live GEFS 35-day store for the latest init,
-ensemble member 0, one lead. Computes LCR (0-12, forecast mode, no surprise
-+3) per res-5 freeway hex via the published ladder from
-https://icyroadsafety.com/lcr/. Renders data/verify_lcr.png so the JS/GPU
-implementation in web/ has a fixed target to match.
+Reads 8 input bands from the live NOAA HRRR 48-hour forecast store (the same
+store the web app reads), for the init the app defaults to (14 Jan 2026 00Z),
+one lead. Computes LCR (0-12, forecast mode) per res-5 freeway hex via the
+ladder from https://icyroadsafety.com/lcr/. Renders data/verify_lcr.png and a
+per-hex CSV so the JS/GPU implementation in web/ has a fixed target to match.
+
+`lcr_score` here is the byte-for-byte twin of web/src/lcr/compute.ts.
 
 Run (uv sandbox for obstore; rest are project deps):
 
@@ -25,7 +27,9 @@ from obstore.store import HTTPStore
 from shapely import LineString
 from zarr.storage import ObjectStore
 
-URL = "https://data.source.coop/dynamical/noaa-gefs-forecast-35-day/v0.2.0.zarr"
+# Same store + default init as the web app (web/src/App.tsx).
+URL = "https://data.source.coop/dynamical/noaa-hrrr-forecast-48-hour/v0.1.0.zarr"
+INIT_DATE = np.datetime64("2026-01-14T00:00")
 LEAD_IDX = int(sys.argv[1]) if len(sys.argv) > 1 else 0
 DATA = Path("data")
 
@@ -44,8 +48,7 @@ BANDS = [
 def lcr_score(tC, prate, csnow, cfrzr, cicep, u10, v10, tcc):
     """Vectorized LCR ladder (forecast mode). Inputs are np arrays, same shape.
 
-    Returns: lcr (0..12 float), and a tiny dict of which factors fired
-    (for the in-browser breakdown tooltip parity check).
+    Byte-for-byte twin of web/src/lcr/compute.ts `computeLcr`.
     """
     tF = tC * 9.0 / 5.0 + 32.0
     qpf = prate * 3600.0          # kg/m2/s -> mm/h (1 kg/m2 ~ 1 mm)
@@ -105,28 +108,33 @@ print(f"loaded {len(gdf)} road segments, {len(hx)} res-5 hexes")
 # --- read the 8 fields -------------------------------------------------------
 store = ObjectStore(HTTPStore.from_url(URL), read_only=True)
 ds = xr.open_zarr(store, consolidated=True)
-init = ds["init_time"].values[-1]
-print(f"init={np.datetime_as_string(init, unit='h')} lead_idx={LEAD_IDX}")
 
-# Clip to a CONUS window before .load() so we only fetch ~105 chunks per
-# variable instead of ~3900 (chunks are (lat=17, lon=16)). The freeway hexes
-# all sit inside this window.
-J_MIN, J_MAX = int(hx["gefs_j"].min()) - 2, int(hx["gefs_j"].max()) + 3
-I_MIN, I_MAX = int(hx["gefs_i"].min()) - 2, int(hx["gefs_i"].max()) + 3
-print(f"CONUS window: j={J_MIN}..{J_MAX} i={I_MIN}..{I_MAX}")
+# Pick the init the app defaults to (nearest available).
+init_da = ds.sel(init_time=INIT_DATE, method="nearest")["init_time"]
+init = init_da.values
+print(f"requested init={np.datetime_as_string(INIT_DATE, unit='h')} "
+      f"-> using {np.datetime_as_string(init, unit='h')}  lead_idx={LEAD_IDX} (+{LEAD_IDX} h)")
+
+# Pointwise sample at each hex's (hrrr_y, hrrr_x). Vectorized .isel fetches only
+# the spatial shards covering the freeway hexes (same set the app's side channel
+# pulls), not the whole CONUS grid.
+ys = xr.DataArray(hx["hrrr_y"].to_numpy(), dims="hex")
+xs = xr.DataArray(hx["hrrr_x"].to_numpy(), dims="hex")
 
 vals = {}
 for name in BANDS:
-    arr = (
+    pts = (
         ds[name]
-        .isel(init_time=-1, ensemble_member=0, lead_time=LEAD_IDX,
-              latitude=slice(J_MIN, J_MAX), longitude=slice(I_MIN, I_MAX))
-        .load().values
+        .sel(init_time=INIT_DATE, method="nearest")
+        .isel(lead_time=LEAD_IDX)
+        .isel(y=ys, x=xs)
+        .load()
+        .values
     )
-    js = hx["gefs_j"].values - J_MIN
-    is_ = hx["gefs_i"].values - I_MIN
-    vals[name] = arr[js, is_]
-    print(f"  {name}: shape={arr.shape} hex-sample min={vals[name].min():.3f} max={vals[name].max():.3f}", flush=True)
+    vals[name] = np.asarray(pts, dtype=np.float64)
+    v = vals[name]
+    print(f"  {name}: hex-sample min={np.nanmin(v):.3f} max={np.nanmax(v):.3f} "
+          f"mean={np.nanmean(v):.3f}", flush=True)
 
 lcr = lcr_score(
     vals["temperature_2m"],
@@ -160,15 +168,17 @@ if len(haz):
     haz.plot(ax=ax, column="lcr", cmap="magma_r", linewidth=1.0,
              vmin=0, vmax=12, legend=True,
              legend_kwds={"label": "LCR (0..12)", "shrink": 0.5})
-ax.set_title(f"US freeways · LCR · init {np.datetime_as_string(init, unit='h')} · +{LEAD_IDX*3} h · member 0",
-             color="white")
+ax.set_title(
+    f"US freeways · LCR · HRRR init {np.datetime_as_string(init, unit='h')} · +{LEAD_IDX} h",
+    color="white",
+)
 ax.set_axis_off()
 out = DATA / "verify_lcr.png"
 fig.savefig(out, dpi=140, bbox_inches="tight", facecolor=fig.get_facecolor())
 print(f"wrote {out}")
 
 # --- export the per-hex LCR table so the JS side can compare ----------------
-hx_out = hx[["h3_r5", "gefs_i", "gefs_j"]].copy()
+hx_out = hx[["h3_r5", "hrrr_x", "hrrr_y"]].copy()
 hx_out["lcr"] = lcr
 for name in BANDS:
     hx_out[name] = vals[name]
