@@ -89,16 +89,16 @@ export function ControlPanel(props: ControlPanelProps) {
     <SharedControlPanel
       title="HRRR LCR · US Freeways"
       position="top-left"
-      width="380px"
+      width="440px"
       sourceHref="https://github.com/kentstephen/zarr-road-risk"
     >
-      <Stack gap="3.5">
-        <Text fontSize="xs" color="gray.600" lineHeight="1.6">
+      <Stack gap="2.5">
+        <Text fontSize="xs" color="gray.600" lineHeight="1.5">
           Freeways colored by an{" "}
           <Text as="span" fontWeight="semibold">
             LCR-Inspired Road Risk
           </Text>{" "}
-          score (0–12) — a forecast-derived estimate of{" "}
+          score, a forecast-derived estimate of{" "}
           <Link
             href="https://icyroadsafety.com/lcr/"
             target="_blank"
@@ -108,7 +108,10 @@ export function ControlPanel(props: ControlPanelProps) {
           >
             Loss-of-Control Risk
           </Link>
-          , computed live from the{" "}
+          , computed live in the browser.
+        </Text>
+        <Text fontSize="xs" color="gray.500" lineHeight="1.5">
+          Data:{" "}
           <Link
             href="https://source.coop/dynamical/noaa-hrrr-forecast-48-hour"
             target="_blank"
@@ -118,7 +121,7 @@ export function ControlPanel(props: ControlPanelProps) {
           >
             NOAA HRRR 48-hour forecast
           </Link>{" "}
-          Zarr v3 store (
+          (Zarr v3) |{" "}
           <Link
             href="https://dynamical.org"
             target="_blank"
@@ -127,8 +130,8 @@ export function ControlPanel(props: ControlPanelProps) {
             textDecoration="underline"
           >
             Dynamical
-          </Link>
-          , on{" "}
+          </Link>{" "}
+          |{" "}
           <Link
             href="https://source.coop"
             target="_blank"
@@ -138,10 +141,9 @@ export function ControlPanel(props: ControlPanelProps) {
           >
             source.coop
           </Link>
-          ).
         </Text>
 
-        <Text fontSize="xs" color="gray.600" lineHeight="1.6">
+        <Text fontSize="xs" color="gray.600" lineHeight="1.5">
           <Text as="span" fontWeight="medium">
             Cloud-cover backdrop
           </Text>{" "}
@@ -373,9 +375,9 @@ export function ControlPanel(props: ControlPanelProps) {
                 : "no winter hazard"}
             </Text>
             <Text fontSize="xs" color="gray.600">
-              T {Number.isFinite(pick.result.tempF) ? pick.result.tempF.toFixed(1) : "—"} °F · QPF{" "}
-              {Number.isFinite(pick.result.qpfMmH) ? pick.result.qpfMmH.toFixed(2) : "—"} mm/h · wind{" "}
-              {Number.isFinite(pick.result.windMph) ? pick.result.windMph.toFixed(0) : "—"} mph
+              QPF{" "}
+              {Number.isFinite(pick.result.qpfMmH) ? pick.result.qpfMmH.toFixed(2) : "n/a"} mm/h · wind{" "}
+              {Number.isFinite(pick.result.windMph) ? pick.result.windMph.toFixed(0) : "n/a"} mph
             </Text>
             <Text fontSize="xs" color="gray.500">
               ({pick.hex.lat.toFixed(2)}, {pick.hex.lon.toFixed(2)}) · h3 {pick.hex.h3_r5}
