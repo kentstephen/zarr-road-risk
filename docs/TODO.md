@@ -2,6 +2,25 @@
 
 Tracked follow-ups from the browser LCR demo work. Captured 2026-05-28.
 
+## Next session (Stephen, end of 2026-05-28)
+
+- **App as SQL backend, not just a pickable map.** The interesting move is
+  vectorizing the LCR field into queryable rows — "which roads are at risk
+  right now?", "which roads in New Hampshire are at risk over 2026-01-12 to
+  2026-01-15?". Picking is a UI affordance for the same underlying data;
+  the real value is the query surface. Sketch already exists in the
+  "Backend" section below.
+- **Road visuals need a rebuild.** Today's Natural Earth `Freeway/Tollway`
+  segments don't look good — thin, fragmented, no name affordance.
+  Two directions to compare tomorrow:
+  - **Polyfill the H3 corridor cells** and render those instead of (or as
+    a backdrop for) the line segments. Whole-cell color reads stronger
+    than 2 px polylines at zoom 3–4.
+  - **Overture motorways CONUS, side-by-side with Natural Earth.** Pull
+    Overture's `transportation` motorways for CONUS, render in parallel
+    with the current NE layer, compare. Overture brings `names.primary`
+    + canonical road IDs we can carry through picking / queries.
+
 ## Visualization
 
 - **Raster framing post-HRRR swap.** With `beforeId: "water"` the HRRR

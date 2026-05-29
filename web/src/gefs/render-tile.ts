@@ -4,6 +4,7 @@ import {
   LinearRescale,
 } from "@developmentseed/deck.gl-raster/gpu-modules";
 import type { Texture } from "@luma.gl/core";
+import { FilterRange } from "../gpu/filter-range.js";
 import { SampleTexture2DArray } from "../gpu/sample-texture-2d-array.js";
 import type { FieldChoice } from "./metadata.js";
 import type { HrrrTileData } from "./get-tile-data.js";
@@ -27,12 +28,32 @@ export type MakeRenderTileArgs = {
 export function makeRenderTile(args: MakeRenderTileArgs) {
   const { layerIndex, field, colormapTexture, rescaleMin, rescaleMax } = args;
   return function renderTile(data: HrrrTileData): RenderTileResult {
+    // Discard pixels at/below the field's "dead value" (in raw zarr units).
+    // hideAtOrBelow is in DISPLAY units; divide by displayScale to convert.
+    // We use `filterMin = threshold + epsilon` so the threshold itself is
+    // also discarded (FilterRange is inclusive on the bound).
+    const filterMinDisplay = field.hideAtOrBelow;
+    const useFilter = filterMinDisplay !== undefined;
+    const filterMinRaw = useFilter
+      ? filterMinDisplay / field.displayScale + 1e-7
+      : Number.NEGATIVE_INFINITY;
     return {
       renderPipeline: [
         {
           module: SampleTexture2DArray,
           props: { dataTex: data.texture, layerIndex },
         },
+        ...(useFilter
+          ? [
+              {
+                module: FilterRange,
+                props: {
+                  filterMin: filterMinRaw,
+                  filterMax: Number.POSITIVE_INFINITY,
+                },
+              },
+            ]
+          : []),
         {
           // rescale min/max are in DISPLAY units; divide by displayScale to
           // bring them back into the raw zarr units that the GPU samples.
