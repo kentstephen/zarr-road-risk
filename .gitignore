@@ -24,6 +24,7 @@ __pycache__/
 # Working notes / running todo (kept local, not part of the public repo)
 NOTES.md
 docs/TODO.md
+docs/init-load-speed.md
 
 # Build / output artifacts
 *.png
