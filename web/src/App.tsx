@@ -47,7 +47,7 @@ const MAP_STYLE_URL =
 const ZARR_URL =
   "https://data.source.coop/dynamical/noaa-hrrr-forecast-48-hour/v0.1.0.zarr";
 const BASE_STEP_HOURS = 1;
-const INITIAL_FRAME_MS = 230;
+const INITIAL_FRAME_MS = 250;
 const DEFAULT_INIT_DATE = new Date("2026-01-14T00:00:00Z");
 
 type PickInfo = { hex: HexPixel; result: LcrResult } | null;
