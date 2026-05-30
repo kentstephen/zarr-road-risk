@@ -248,6 +248,22 @@ export function ControlPanel(props: ControlPanelProps) {
               </Slider.Control>
             </Slider.Root>
           </HStack>
+          <Text mt="1" fontSize="xs" color="gray.500">
+            Press{" "}
+            <Text
+              as="kbd"
+              px="1"
+              fontSize="0.7em"
+              fontFamily="mono"
+              borderWidth="1px"
+              borderColor="gray.300"
+              borderRadius="sm"
+              bg="gray.50"
+            >
+              Space
+            </Text>{" "}
+            to pause / play.
+          </Text>
         </Field>
 
         <Field label={<Text as="span">3 h dwell: {frameDurationMs} ms</Text>}>

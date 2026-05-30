@@ -235,6 +235,28 @@ export default function App() {
     return () => cancelAnimationFrame(raf);
   }, [isPlaying, frameDurationMs]);
 
+  // Spacebar toggles play/pause. Ignored while focus is in a form control
+  // (date input) or on a button/slider, where Space already has a meaning.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.code !== "Space" && e.key !== " ") return;
+      const el = e.target as HTMLElement | null;
+      const tag = el?.tagName;
+      if (
+        tag === "INPUT" ||
+        tag === "TEXTAREA" ||
+        tag === "BUTTON" ||
+        el?.isContentEditable
+      ) {
+        return;
+      }
+      e.preventDefault();
+      setIsPlaying((p) => !p);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   // HRRR shard already covers all 49 leads; no lead-window slicing needed.
   const selection = useMemo(
     () => buildSelection({ initTimeIdx }),
