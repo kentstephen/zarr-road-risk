@@ -10,11 +10,11 @@ npm install
 npm run dev
 ```
 
-The dev server defaults to **port 3000** (set in `vite.config`). To run on a
-different port — e.g. if 3000 is already taken — pass `--port`:
+The dev server defaults to **port 3000** (`strictPort` on, so it fails rather
+than hopping if 3000 is taken). Override per-machine with the `PORT` env var:
 
 ```sh
-npm run dev -- --port 5371
+PORT=5371 npm run dev      # http://localhost:5371
 ```
 
 Other scripts:
