@@ -39,7 +39,10 @@ export async function loadRoadTable(
 }
 
 export const UNNAMED_ROAD = "(unnamed)";
-export const UNKNOWN_STATE = "—";
+// Freeway hexes that fall outside every US state polygon — border segments
+// whose Overture name is Canadian/Mexican (e.g. "General Brock Parkway"). They
+// stay in the table but bucket into one group pinned to the bottom.
+export const EX_US_STATE = "Ex-US";
 
 export type AffectedRoad = { name: string; lcr: number };
 export type StateGroup = { state: string; roads: AffectedRoad[] };
@@ -48,7 +51,8 @@ export type StateGroup = { state: string; roads: AffectedRoad[] };
  * Roads currently lit up (LCR > 0) for the active frame, grouped by state
  * (two-letter code, alphabetical). Within a state, one row per road keeping
  * the worst LCR, sorted by severity. Hexes with no road name collapse into a
- * single `(unnamed)` row for their state; hexes with no state fall under `—`.
+ * single `(unnamed)` row for their state; hexes with no US state bucket into an
+ * `Ex-US` group pinned to the bottom.
  *
  * Derived purely from the live `hexLcr` map — a road appears when its hexes
  * light up and drops out of the result once they go quiet.
@@ -61,7 +65,7 @@ export function affectedByState(
   for (const [h3, res] of hexLcr) {
     if (!(res.lcr > 0)) continue;
     const info = lookup.get(h3);
-    const state = info?.state ?? UNKNOWN_STATE;
+    const state = info?.state ?? EX_US_STATE;
     const name = info?.roadName ?? UNNAMED_ROAD;
     let roads = states.get(state);
     if (!roads) {
@@ -71,7 +75,12 @@ export function affectedByState(
     roads.set(name, Math.max(roads.get(name) ?? 0, res.lcr));
   }
   return [...states.entries()]
-    .sort((a, b) => a[0].localeCompare(b[0]))
+    // Alphabetical by state, but the Ex-US bucket always sorts to the bottom.
+    .sort((a, b) => {
+      if (a[0] === EX_US_STATE) return 1;
+      if (b[0] === EX_US_STATE) return -1;
+      return a[0].localeCompare(b[0]);
+    })
     .map(([state, roads]) => ({
       state,
       roads: [...roads.entries()]
